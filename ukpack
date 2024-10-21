@@ -1,0 +1,685 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-only
+# vim: set ts=4 sw=4 et
+
+"""Create Ubuntu kernel packaging"""
+
+import sys
+import os
+import errno
+import io
+import re
+import pathlib
+import shutil
+import subprocess
+import argparse
+import tarfile
+from typing import Any, Optional
+import tomllib
+
+# from pprint import pp
+
+UBUNTU_RELEASES = {
+    "focal": "20.04",
+    "jammy": "22.04",
+    "noble": "24.04",
+    "oracular": "24.10",
+    "plucky": "25.04",
+}
+DEB_SOURCE_FIELDS = [
+    "Source",
+    "Maintainer",
+    "Uploaders",
+    "Standards-Version",
+    "Description",
+    "Homepage",
+    "Bugs",
+    "Rules-Requires-Root",
+    "Testsuite",
+    "Testsuite-Triggers",
+    "Vcs-Git",
+    "Vcs-Browser",
+    "Origin",
+    "Section",
+    "Priority",
+    "Build-Depends",
+    "Build-Depends-Arch",
+    "Build-Depends-Indep",
+    "Build-Conflicts",
+    "Build-Conflicts-Arch",
+    "Build-Conflicts-Indep",
+]
+DEB_BINARY_FIELDS = [
+    "Package",
+    "Package-Type",
+    "Architecture",
+    "Build-Profiles",
+    "Protected",
+    "Essential",
+    "Build-Essential",
+    "Multi-Arch",
+    "Tag",
+    "Description",
+    "Homepage",
+    "Section",
+    "Priority",
+    "Depends",
+    "Pre-Depends",
+    "Recommends",
+    "Suggests",
+    "Breaks",
+    "Enhances",
+    "Replaces",
+    "Conflicts",
+    "Provides",
+    "Built-Using",
+    "Static-Built-Using",
+]
+
+
+def merge(a: dict, b: dict, path=[]) -> dict:
+    """Merge dictionary b into dictionary a"""
+    for key, new in b.items():
+        old = a.get(key, None)
+        if isinstance(old, dict):
+            if isinstance(new, dict):
+                merge(old, new, path + [key])
+            else:
+                pathstr = ".".join(path + [key])
+                raise ValueError(f"Overwriting table at {pathstr})")
+        else:
+            a[key] = new
+    return a
+
+
+class Spawn(subprocess.Popen):
+    def __init__(
+        self, *args, stdin=subprocess.DEVNULL, stdout=None, stderr=None, **kwargs
+    ):
+        if isinstance(stdout, pathlib.Path):
+            stdout = stdout.open("wb")
+        cmd = args[0]
+        if not isinstance(cmd, list):
+            cmd = list(args)
+        print(f"+ {' '.join(cmd)}")
+        try:
+            super().__init__(cmd, stdin=stdin, stdout=stdout, stderr=stderr, **kwargs)
+        finally:
+            if hasattr(stdout, "close"):
+                stdout.close()
+
+    def _fail(self):
+        raise subprocess.CalledProcessError(returncode=self.returncode, cmd=self.args)
+
+    def check_returncode(self):
+        self.wait()
+        if self.returncode != 0:
+            self._fail()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, typ, value, traceback):
+        if hasattr(self.stdin, "close"):
+            self.stdin.close()
+        self.wait()
+        if self.returncode != 0:
+            if typ is None or typ == BrokenPipeError:
+                self._fail()
+        return False
+
+
+class Config:
+    CONTROL_TEMPLATE = re.compile(
+        r"{{([^}]*)}}|(?P<tail>[ \t\n]+\Z)|(?P<empty>\n(?=\n))|(?P<newline>\n)",
+        re.ASCII,
+    )
+
+    @staticmethod
+    def _parse_config(config: pathlib.Path) -> (str, dict):
+        with open(config, "rb") as cfile:
+            firstline = cfile.readline().decode("utf-8")
+            for line in cfile:
+                if line == b"---\n":
+                    break
+            overrides = tomllib.load(cfile)
+        return firstline, overrides
+
+    @staticmethod
+    def _parse_firstline(line: str) -> (str, str, str):
+        match = re.match(r"([^ \t]*)[ \t]*\(([^\)]*)\)[ \t]*([^;]*)", line)
+        if not match:
+            raise ValueError(f"Unable to parse changelog entry: {line.rstrip()}")
+
+        return match.group(1), match.group(2), match.group(3)
+
+    @staticmethod
+    def _validate_name(name: str):
+        if not re.fullmatch(r"[a-z0-9+-.]*", name):
+            raise ValueError(
+                f"Invalid package name: {name}. "
+                "Only a-z, 0-9, +, -, and . allowed in package names."
+            )
+        if not name.startswith("linux-"):
+            raise ValueError(
+                f'Invalid source package name: {name}. Must begin with "linux-".'
+            )
+
+    @staticmethod
+    def _validate_version(version: str) -> (str, str, str, str):
+        dash = version.rfind("-")
+        if dash <= 0:
+            raise ValueError(
+                f"Invalid version: {version}. "
+                "Must be of the form <upstream version>-<package revision>."
+            )
+
+        orig = version[:dash]
+        rev = version[dash + 1 :]
+
+        if not re.fullmatch(r"[0-9][A-Za-z0-9.+-:~]*", orig):
+            raise ValueError(
+                f"Invalid upstream version: {orig}. "
+                "Only A-Z, a-z, 0-9, ., +, -, :, and ~ allowed."
+            )
+        match = re.fullmatch(r"([A-Za-z0-9]+)[.+~]*([A-Za-z0-9.+~]*)", rev)
+        if not match:
+            raise ValueError(
+                f"Invalid revision: {rev}."
+                "Only A-Z, a-z, 0-9, ., +, and ~ allowed in package revision."
+            )
+
+        abi = match.group(1)
+        upload = match.group(2) or "1"
+        return orig, rev, abi, upload
+
+    @staticmethod
+    def _validate_distro(distro: str):
+        if " " in distro:
+            raise ValueError("Only 1 distro supported.")
+        if distro not in UBUNTU_RELEASES:
+            raise ValueError(f"Unsupported Ubuntu release: {distro}.")
+
+    def _massage_packages(self):
+        pkgs = self.env["pkg"]
+        source = pkgs["source"]
+        build_depends = set()
+        build_depends_arch = set()
+        build_depends_indep = set()
+
+        for name, pkg in pkgs.items():
+            if name != "source":
+                arch = pkg.get("Architecture", "any")
+                if arch == "any":
+                    arch = self.env["arch"]
+                else:
+                    arch = set(arch.split(" "))
+                    if not arch <= self.arch:
+                        continue
+                    arch = " ".join(sorted(arch))
+                pkg["Architecture"] = arch
+
+            # Sort lists
+            for field, value in pkg.items():
+                if isinstance(value, list):
+                    pkg[field] = sorted(set(value))
+
+            if lst := pkg.get("Build-Depends", None):
+                build_depends.update(lst)
+            if lst := pkg.get("Build-Depends-Arch", None):
+                build_depends_arch.update(lst)
+            if lst := pkg.get("Build-Depends-Indep", None):
+                build_depends_indep.update(lst)
+
+        if build_depends:
+            source["Build-Depends"] = sorted(build_depends)
+        if build_depends_arch:
+            source["Build-Depends-Arch"] = sorted(build_depends_arch)
+        if build_depends_indep:
+            source["Build-Depends-Indep"] = sorted(build_depends_indep)
+
+    def __init__(self, datadir: pathlib.Path, config: pathlib.Path):
+        """Get value tree from given input config file"""
+
+        firstline, overrides = self._parse_config(config)
+        name, version, distro = self._parse_firstline(firstline)
+
+        self._validate_name(name)
+        orig, rev, abi, upload = self._validate_version(version)
+        self._validate_distro(distro)
+
+        with open(datadir / distro / "defaults.toml", "rb") as dfile:
+            env = tomllib.load(dfile)
+
+        merge(env, overrides)
+
+        arch = env["arch"]
+        if not isinstance(arch, list):
+            arch = arch.split(" ")
+        arch = set(arch)
+
+        self.datadir = datadir
+        self.path = config
+        self.arch = arch
+        self.env = env
+
+        flavour = name[6:]
+        env["pkg"]["source"]["Source"] = name
+        env["version"] = version
+        env["upstream-version"] = orig
+        env["package-revision"] = rev
+        env["abi-number"] = abi
+        env["upload-number"] = upload
+        env["kver"] = f"{orig.replace('~', '-')}-{abi}"
+        env["krel"] = f"{env['kver']}-{flavour}"
+        env["distro"] = distro
+        env["flavour"] = flavour
+        env["arch"] = " ".join(sorted(self.arch))
+        self._massage_packages()
+
+    def __getitem__(self, key: str) -> Any:
+        return self.env[key]
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.env
+
+    def arch_override(self, arch: str, key: str):
+        arch = self.env[arch]
+        if key in arch:
+            return arch[key]
+        return self.env.get(key, None)
+
+    def _control_template(self, val: str) -> str:
+        def replace(m: re.Match):
+            if m.group("tail") is not None:
+                return ""
+            if m.group("empty") is not None:
+                return "\n ."
+            if m.group("newline") is not None:
+                return "\n "
+            g1 = m.group(1)
+            if g1 == "KREL":
+                return self.env["krel"]
+            if g1 == "KVER":
+                return self.env["kver"]
+            if g1 == "FLAVOUR":
+                return self.env["flavour"]
+            return m.group(0)
+
+        return self.CONTROL_TEMPLATE.sub(replace, val)
+
+    def _write_prop(self, out: io.TextIOBase, key: str, val: Any):
+        if isinstance(val, list):
+            if len(val) > 1:
+                out.write(f"{key}:\n")
+                for e in val:
+                    out.write(f" {self._control_template(e)},\n")
+            else:
+                out.write(f"{key}: {self._control_template(val[0])}\n")
+        else:
+            out.write(f"{key}: {self._control_template(val)}\n")
+
+    def _write_source(self, out: io.TextIOBase, pkg: dict):
+        for key in DEB_SOURCE_FIELDS:
+            if val := pkg.get(key, None):
+                self._write_prop(out, key, val)
+            # TODO: Handle XS-, XB-, and XC- fields
+        out.write("\n")
+
+    def _write_pkg(self, out: io.TextIOBase, pkg: dict):
+        for key in DEB_BINARY_FIELDS:
+            if val := pkg.get(key, None):
+                self._write_prop(out, key, val)
+            # TODO: Handle XS-, XB-, and XC- fields
+        out.write("\n")
+
+    def write_control(self, path: pathlib.Path):
+        pkgs = self.env["pkg"]
+        with open(path, "xt", encoding="utf-8") as cfile:
+            self._write_source(cfile, pkgs["source"])
+            self._write_pkg(cfile, pkgs["meta-image"])
+            self._write_pkg(cfile, pkgs["image"])
+            self._write_pkg(cfile, pkgs["modules"])
+
+    def write_changelog(self, path: pathlib.Path):
+        with open(self.path, "rb") as src:
+            with open(path, "xb") as dst:
+                while True:
+                    line = src.readline()
+                    if line == b"---\n":
+                        break
+                    dst.write(line)
+
+    def write_config_mk(self, path: pathlib.Path):
+        per_arch_options = [
+            "config",
+            "gcc",
+            "vdso-install",
+            "install-mod-strip",
+            "force-compress-modules",
+        ]
+        with open(path, "xt", encoding="utf-8") as dst:
+            for arch in sorted(self.arch):
+                for option in per_arch_options:
+                    if value := self.arch_override(arch, option):
+                        dst.write(f"{option}-{arch} := {value}\n")
+
+            dst.write(f"flavour := {self.env['flavour']}\n")
+            dst.write(f"krel := {self.env['krel']}\n")
+            dst.write(f"abi-number := {self.env['abi-number']}\n")
+            dst.write(f"upload-number := {self.env['upload-number']}\n")
+
+
+def parse_args() -> argparse.Namespace:
+    here = pathlib.Path()
+
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description="Create Ubuntu kernel packaging",
+    )
+    parser.add_argument(
+        "config",
+        type=pathlib.Path,
+        help="Debian changelog with configuration in TOML footer",
+    )
+    parser.add_argument(
+        "--datadir",
+        type=pathlib.Path,
+        default=pathlib.Path(__file__).parent.resolve() / "ubuntu",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "-o",
+        "--orig",
+        type=pathlib.Path,
+        help="path to orig tarball",
+    )
+    parser.add_argument(
+        "-t",
+        "--tree",
+        type=pathlib.Path,
+        default=here,
+        help="path to Linux kernel git tree",
+    )
+    parser.add_argument(
+        "-d",
+        "--dest",
+        type=pathlib.Path,
+        default=here,
+        help="output path",
+    )
+    parser.add_argument(
+        "-D",
+        "--debian",
+        action="store_true",
+        help="just create the debian directory",
+    )
+    return parser.parse_args()
+
+
+def create_debian(config: Config, debian: pathlib.Path):
+    shutil.copytree(config.datadir / config["distro"] / "debian", debian)
+    config.write_control(debian / "control")
+    config.write_changelog(debian / "changelog")
+
+    for arch in config.arch:
+        kconfig = config.arch_override(arch, "config")
+        if not kconfig:
+            raise ValueError(f"No config specified for {arch}")
+
+        if "/" in kconfig or (kconfig != "defconfig" and not kconfig.endswith("_defconfig")):
+            config_file = config.path.parent / kconfig
+            if not config_file.is_file():
+                raise ValueError(f"Could not find kernel config file: '{kconfig}'")
+
+            if kconfig.endswith("_defconfig"):
+                tgt = f"{arch}_defconfig"
+            else:
+                tgt = f"{arch}.config"
+
+            shutil.copy(config_file, debian / tgt)
+            config[arch]["config"] = False
+
+    config.write_config_mk(debian / "config.mk")
+
+def numeric_owner(info: tarfile.TarInfo) -> tarfile.TarInfo:
+    info.uid = 0
+    info.gid = 0
+    info.uname = ""
+    info.gname = ""
+    return info
+
+
+def create_source_pkg_quilt(
+    config: Config,
+    dest: pathlib.Path,
+    build: pathlib.Path,
+    repo: pathlib.Path,
+    orig: Optional[pathlib.Path],
+):
+    source = config["pkg"]["source"]["Source"]
+    debian = build / "debian"
+
+    orig_tarball_xz = dest / f"{source}_{config['upstream-version']}.orig.tar.xz"
+    orig_tarball_gz = dest / f"{source}_{config['upstream-version']}.orig.tar.gz"
+    if orig:
+        if not orig.is_file():
+            raise OSError(errno.ENOENT, os.strerror(errno.ENOENT), orig)
+        if orig.suffix == ".xz":
+            orig_tarball = orig_tarball_xz
+        elif orig.suffix == ".gz":
+            orig_tarball = orig_tarball_gz
+        if not orig_tarball.is_file():
+            print(f"Creating {orig_tarball.name} symlink")
+            orig_tarball.symlink_to(orig)
+    elif orig_tarball_xz.is_file():
+        orig_tarball = orig_tarball_xz
+    elif orig_tarball_gz.is_file():
+        orig_tarball = orig_tarball_gz
+    else:
+        raise OSError(errno.ENOENT, os.strerror(errno.ENOENT), orig_tarball_xz)
+
+    print("Creating debian directory")
+    create_debian(config, debian)
+
+    patches = debian / "patches"
+    patches.mkdir(mode=0o755)
+    patch_file = patches / f"{config['version']}.patch"
+    print(f"Creating debian/patches/{patch_file.name}")
+    Spawn(
+        "git",
+        "diff",
+        "-U0",
+        f"{config['orig']}..{config['head']}",
+        "--",
+        ":(exclude)debian/",
+        stdout=patch_file,
+        cwd=repo,
+    ).check_returncode()
+
+    with open(patches / "series", "xt", encoding="utf-8") as out:
+        out.write(f"{patch_file.name}\n")
+
+    # git_diff_raw = re.compile(
+    #     b":([0-7]{6}) ([0-7]{6}) [0-9a-f]+ [0-9a-f]+ ([A-Z][0-9]*)\t([^\n]*)\n"
+    # )
+    # git = Spawn(
+    #     "git",
+    #     "diff",
+    #     "--raw",
+    #     "--no-renames",
+    #     f"{config['orig']}..{config['head']}",
+    #     stdout=subprocess.PIPE,
+    #     cwd=repo,
+    # )
+    # with open(debian / "reconstruct", "xb") as out:
+    #     for line in git.stdout:
+    #         match = git_diff_raw.fullmatch(line)
+    #         if not match:
+    #             raise ValueError("Unable to parse raw git diff line\n")
+    #         mode_old, mode_new, status, path = match.group(1, 2, 3, 4)
+    #         if path == b"REDME":
+    #             print(line)
+    #             print(mode_old, mode_new, status, path)
+    #         if status == b"D":
+    #             out.write(b"rm -f '")
+    #             out.write(path)
+    #             out.write(b"'\n")
+    #         elif (
+    #             status == b"A" or (status == b"M" and mode_old != mode_new)
+    #         ) and mode_new[:3] == b"100":
+    #             out.write(b"chmod 0")
+    #             out.write(mode_new[3:])
+    #             out.write(b" '")
+    #             out.write(path)
+    #             out.write(b"'\n")
+    # git.check_returncode()
+
+    debian_tarball = dest / f"{source}_{config['version']}.debian.tar.xz"
+    print(f"Creating {debian_tarball.name}")
+    with Spawn(
+        "xz",
+        "--verbose",
+        "--compress",
+        "--stdout",
+        stdin=subprocess.PIPE,
+        stdout=debian_tarball,
+        cwd=dest,
+    ) as xz:
+        with tarfile.open(mode="w|", fileobj=xz.stdin) as out:
+            out.add(debian, "debian", recursive=True, filter=numeric_owner)
+
+    print(f"Creating {source}_{config['version']}.dsc")
+    Spawn(
+        "dpkg-source",
+        "--format=3.0 (custom)",
+        "--target-format=3.0 (quilt)",
+        "--build",
+        source,
+        orig_tarball.name,
+        debian_tarball.name,
+        cwd=dest,
+    ).check_returncode()
+
+
+def create_source_pkg_native(
+    config: Config, dest: pathlib.Path, build: pathlib.Path, repo: pathlib.Path
+):
+    source = config["pkg"]["source"]["Source"]
+    debian = build / "debian"
+    print("Creating debian directory")
+    create_debian(config, debian)
+
+    tarball = f"{source}_{config['version']}.tar.xz"
+    print(f"Creating {tarball}")
+    with Spawn(
+        "git",
+        "archive",
+        "--format=tar",
+        f"--prefix={source}/",
+        config["head"],
+        ":(exclude)debian/",
+        stdout=subprocess.PIPE,
+        cwd=repo,
+    ) as git:
+        with Spawn(
+            "xz",
+            "--verbose",
+            "--threads=0",
+            "--compress",
+            "--stdout",
+            stdin=subprocess.PIPE,
+            stdout=dest / tarball,
+            cwd=dest,
+        ) as xz:
+            with tarfile.open(mode="w|", fileobj=xz.stdin) as out:
+                try:
+                    with tarfile.open(mode="r|", fileobj=git.stdout) as git_archive:
+                        while info := git_archive.next():
+                            file = (
+                                git_archive.extractfile(info) if info.isfile() else None
+                            )
+                            out.addfile(numeric_owner(info), fileobj=file)
+                except tarfile.ReadError as e:
+                    if str(e) != "empty file":
+                        raise e
+                out.add(
+                    debian, f"{source}/debian", recursive=True, filter=numeric_owner
+                )
+
+    print(f"Creating {source}_{config['version']}.dsc")
+    Spawn(
+        "dpkg-source",
+        "--format=3.0 (custom)",
+        "--target-format=3.0 (native)",
+        "--build",
+        source,
+        tarball,
+        cwd=dest,
+    ).check_returncode()
+
+
+def create_source_pkg(
+    config: Config,
+    dest: pathlib.Path,
+    repo: pathlib.Path,
+    orig: Optional[pathlib.Path],
+):
+    source = config["pkg"]["source"]["Source"]
+    build = dest / source
+    build.mkdir(mode=0o755)
+
+    buildinfo_file = f"{source}_{config['version']}_source.buildinfo"
+    changes_file = f"{source}_{config['version']}_source.changes"
+
+    try:
+        if "orig" in config:
+            create_source_pkg_quilt(config, dest, build, repo, orig)
+        else:
+            create_source_pkg_native(config, dest, build, repo)
+
+        print(f"Creating {buildinfo_file}")
+        Spawn("dpkg-genbuildinfo", "--build=source", cwd=build).check_returncode()
+
+        print(f"Creating {changes_file}")
+        Spawn(
+            "dpkg-genchanges", "--build=source", f"-O../{changes_file}", cwd=build
+        ).check_returncode()
+    finally:
+        shutil.rmtree(build)
+
+
+def run() -> int:
+    def eprint(*args, **kwargs) -> int:
+        print(*args, file=sys.stderr, **kwargs)
+        return 1
+
+    cli = parse_args()
+    try:
+        config = Config(cli.datadir, cli.config)
+    except ValueError as e:
+        return eprint(str(e))
+    except FileNotFoundError as e:
+        return eprint(f"{e.strerror}: '{e.filename}'")
+
+    try:
+        if cli.debian:
+            create_debian(config, cli.dest / "debian")
+        else:
+            create_source_pkg(config, cli.dest, cli.tree, cli.orig)
+    except ValueError as e:
+        return eprint(str(e))
+    except FileExistsError as e:
+        return eprint(f"Error creating '{e.filename}': {e.strerror}")
+    except FileNotFoundError as e:
+        return eprint(f"Error opening '{e.filename}': {e.strerror}")
+    except KeyboardInterrupt:
+        return eprint("interrupted")
+    except subprocess.CalledProcessError as e:
+        return e.returncode
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(run())

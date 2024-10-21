@@ -1,0 +1,141 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+arch = "amd64"
+config = "defconfig"
+head = "HEAD"
+vdso-install = "vdso_install"
+install-mod-strip = "1"
+
+[amd64]
+[arm64]
+[armhf]
+[i386]
+[ppc64el]
+vdso-install = ""
+[riscv64]
+install-mod-strip = "--strip-debug --discard-locals"
+[s390x]
+[x32]
+
+[pkg.source]
+Section = "devel"
+Priority = "optional"
+Rules-Requires-Root = "no"
+Standards-Version = "4.6.2"
+Build-Depends = [
+  "debhelper-compat (= 13)",
+]
+
+[pkg.meta-image]
+Package = "linux-image-{{FLAVOUR}}"
+Section = "kernel"
+Depends = [
+  "${misc:Depends}",
+  "linux-image-{{KREL}}",
+  "linux-modules-{{KREL}}",
+  "linux-firmware",
+]
+Description = """
+Linux {{FLAVOUR}} kernel image
+This package will always depend on the latest {{FLAVOUR}} kernel packages.
+"""
+
+[pkg.image]
+Package = "linux-image-{{KREL}}"
+Section = "kernel"
+Priority = "optional"
+Provides = [
+  "linux-image",
+  "${misc:Provides}",
+]
+Depends = [
+  "${misc:Depends}",
+  "kmod",
+  "linux-modules-{{KREL}}",
+]
+Build-Depends-Arch = [
+  "libelf-dev:native",
+  "libssl-dev:native",
+  "flex",
+  "bison",
+  "bc",
+  "python3:native",
+  "perl:native",
+  "gawk",
+  "pahole",
+]
+Recommends = [
+  """grub-pc [amd64] | \
+     grub-efi-amd64 [amd64] | \
+     grub-efi-ia32 [amd64] | \
+     grub [amd64] | \
+     lilo [amd64] | \
+     flash-kernel [armhf arm64] | \
+     grub-efi-arm64 [arm64] | \
+     grub-efi-arm [armhf] | \
+     grub-ieee1275 [ppc64el]\
+  """,
+  "initramfs-tools",
+]
+Suggests = [
+  #"fdutils",
+  #"${S:Source}-tools",
+  "linux-headers-{{KREL}}",
+]
+Description = """
+Linux {{FLAVOUR}} kernel image version {{KVER}}
+This package contains the Linux {{FLAVOUR}} kernel image version {{KVER}}.
+
+You likely do not want to install this package directly. Instead, install
+the linux-{{FLAVOUR}} meta-package, which will ensure that upgrades work
+correctly, and that supporting packages are also installed.
+"""
+
+[pkg.modules]
+Package = "linux-modules-{{KREL}}"
+Section = "kernel"
+Priority = "optional"
+Provides = [
+  "${misc:Provides}"
+]
+Depends = [
+  "${misc:Depends}"
+]
+Build-Depends-Arch = [
+  "kmod",
+  "zstd",
+]
+Description = """
+Linux {{FLAVOUR}} kernel modules for version {{KVER}}
+Contains the corresponding System.map file, the modules built by the
+packager, and scripts that try to ensure that the system is not left in an
+unbootable state after an update.
+
+You likely do not want to install this package directly. Instead, install
+the linux-{{FLAVOUR}} meta-package, which will ensure that upgrades work
+correctly, and that supporting packages are also installed.
+"""
+
+#[pkg.headers]
+#Package = "linux-headers-{{KREL}}"
+
+#[pkg.doc]
+#Package = "linux-doc-{{FLAVOUR}}"
+##Build-Profiles = "<!stage1>"
+#Architecture = "all"
+#Section = "doc"
+#Priority = "optional"
+#Build-Depends-Indep = [
+#  "xmlto",
+#  "bzip2",
+#  "sharutils",
+#  "asciidoc",
+#  "python3-docutils",
+#]
+#Description = """
+#Linux {{FLAVOUR}} kernel specific documentation for version {{KVER}}
+#This package is deprecated and it is temporarily provided only for
+#compatibility reasons. It will be dropped in the future.
+#"""
+
+# vim: set ts=2 sw=2 et:

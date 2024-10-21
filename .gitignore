@@ -1,0 +1,10 @@
+/debian
+/*.xz
+/*.gz
+/*.dsc
+/*.buildinfo
+/*.changes
+/*.upload
+/*.toml
+/*.config
+/*_defconfig
