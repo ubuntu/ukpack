@@ -427,7 +427,9 @@ def create_debian(config: Config, debian: pathlib.Path):
         if not kconfig:
             raise ValueError(f"No config specified for {arch}")
 
-        if "/" in kconfig or (kconfig != "defconfig" and not kconfig.endswith("_defconfig")):
+        if "/" in kconfig or (
+            kconfig != "defconfig" and not kconfig.endswith("_defconfig")
+        ):
             config_file = config.path.parent / kconfig
             if not config_file.is_file():
                 raise ValueError(f"Could not find kernel config file: '{kconfig}'")
@@ -441,6 +443,7 @@ def create_debian(config: Config, debian: pathlib.Path):
             config[arch]["config"] = False
 
     config.write_config_mk(debian / "config.mk")
+
 
 def numeric_owner(info: tarfile.TarInfo) -> tarfile.TarInfo:
     info.uid = 0
