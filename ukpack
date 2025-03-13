@@ -337,6 +337,7 @@ class Config:
         pkgs = self.env["pkg"]
         with open(path, "xt", encoding="utf-8") as cfile:
             self._write_source(cfile, pkgs["source"])
+            self._write_pkg(cfile, pkgs["meta"])
             self._write_pkg(cfile, pkgs["meta-image"])
             self._write_pkg(cfile, pkgs["image"])
             self._write_pkg(cfile, pkgs["modules"])

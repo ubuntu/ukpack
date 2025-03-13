@@ -26,6 +26,24 @@ Build-Depends = [
   "debhelper-compat (= 13)",
 ]
 
+[pkg.meta]
+Package = "linux-{{FLAVOUR}}"
+Section = "kernel"
+Depends = [
+  "${misc:Depends}",
+  "linux-image-{{FLAVOUR}} (= ${binary:Version})",
+  #"linux-headers-{{FLAVOUR}} (= ${binary:Version})",
+]
+Recommends = [
+  #"linux-tools-{{KREL}}",
+  "ubuntu-kernel-accessories",
+]
+Description = """
+Complete Linux {{FLAVOUR}} kernel and headers
+This package will always depend on the latest complete
+Linux {{FLAVOUR}} kernel and headers.
+"""
+
 [pkg.meta-image]
 Package = "linux-image-{{FLAVOUR}}"
 Section = "kernel"
