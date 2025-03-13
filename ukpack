@@ -651,6 +651,10 @@ def create_source_pkg(
     finally:
         shutil.rmtree(build)
 
+    print("Source package built successfully \\o/")
+    print(f"Sign package:    debsign {dest / changes_file}")
+    print(f"Upload package:  dput <PPA> {dest / changes_file}")
+
 
 def run() -> int:
     def eprint(*args, **kwargs) -> int:
