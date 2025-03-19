@@ -506,41 +506,6 @@ def create_source_pkg_quilt(
     with open(patches / "series", "xt", encoding="utf-8") as out:
         out.write(f"{patch_file.name}\n")
 
-    # git_diff_raw = re.compile(
-    #     b":([0-7]{6}) ([0-7]{6}) [0-9a-f]+ [0-9a-f]+ ([A-Z][0-9]*)\t([^\n]*)\n"
-    # )
-    # git = Spawn(
-    #     "git",
-    #     "diff",
-    #     "--raw",
-    #     "--no-renames",
-    #     f"{config['orig']}..{config['head']}",
-    #     stdout=subprocess.PIPE,
-    #     cwd=repo,
-    # )
-    # with open(debian / "reconstruct", "xb") as out:
-    #     for line in git.stdout:
-    #         match = git_diff_raw.fullmatch(line)
-    #         if not match:
-    #             raise ValueError("Unable to parse raw git diff line\n")
-    #         mode_old, mode_new, status, path = match.group(1, 2, 3, 4)
-    #         if path == b"REDME":
-    #             print(line)
-    #             print(mode_old, mode_new, status, path)
-    #         if status == b"D":
-    #             out.write(b"rm -f '")
-    #             out.write(path)
-    #             out.write(b"'\n")
-    #         elif (
-    #             status == b"A" or (status == b"M" and mode_old != mode_new)
-    #         ) and mode_new[:3] == b"100":
-    #             out.write(b"chmod 0")
-    #             out.write(mode_new[3:])
-    #             out.write(b" '")
-    #             out.write(path)
-    #             out.write(b"'\n")
-    # git.check_returncode()
-
     debian_tarball = dest / f"{source}_{config['version']}.debian.tar.xz"
     print(f"Creating {debian_tarball.name}")
     with Spawn(
