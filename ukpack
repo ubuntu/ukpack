@@ -339,8 +339,10 @@ class Config:
             self._write_source(cfile, pkgs["source"])
             self._write_pkg(cfile, pkgs["meta"])
             self._write_pkg(cfile, pkgs["meta-image"])
+            self._write_pkg(cfile, pkgs["meta-headers"])
             self._write_pkg(cfile, pkgs["image"])
             self._write_pkg(cfile, pkgs["modules"])
+            self._write_pkg(cfile, pkgs["headers"])
 
     def write_changelog(self, path: pathlib.Path):
         with open(self.path, "rb") as src:

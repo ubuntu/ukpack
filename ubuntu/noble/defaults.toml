@@ -32,7 +32,7 @@ Section = "kernel"
 Depends = [
   "${misc:Depends}",
   "linux-image-{{FLAVOUR}} (= ${binary:Version})",
-  #"linux-headers-{{FLAVOUR}} (= ${binary:Version})",
+  "linux-headers-{{FLAVOUR}} (= ${binary:Version})",
 ]
 Recommends = [
   #"linux-tools-{{KREL}}",
@@ -56,6 +56,19 @@ Depends = [
 Description = """
 Linux {{FLAVOUR}} kernel image
 This package will always depend on the latest {{FLAVOUR}} kernel packages.
+"""
+
+[pkg.meta-headers]
+Package = "linux-headers-{{FLAVOUR}}"
+Section = "kernel"
+Depends = [
+  "${misc:Depends}",
+  "linux-headers-{{KREL}}",
+]
+Description = """
+Linux {{FLAVOUR}} kernel headers
+This package will always depend on the latest {{FLAVOUR}} kernel headers
+available.
 """
 
 [pkg.image]
@@ -134,8 +147,24 @@ the linux-{{FLAVOUR}} meta-package, which will ensure that upgrades work
 correctly, and that supporting packages are also installed.
 """
 
-#[pkg.headers]
-#Package = "linux-headers-{{KREL}}"
+[pkg.headers]
+Package = "linux-headers-{{KREL}}"
+Section = "devel"
+Priority = "optional"
+Depends = [
+  "${misc:Depends}",
+]
+Provides = [
+  "linux-headers",
+  "linux-headers-3.0",
+]
+Description = """
+Linux {{FLAVOUR}} kernel headers for version {{KVER}}
+This package provides kernel header files for version PKGVER.
+
+This is for sites that want the latest kernel headers.  Please read
+/usr/share/doc/linux-headers-PKGVER-ABINUM/debian.README.gz for details.
+"""
 
 #[pkg.doc]
 #Package = "linux-doc-{{FLAVOUR}}"
