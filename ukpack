@@ -412,6 +412,12 @@ def parse_args() -> argparse.Namespace:
         help="output path",
     )
     parser.add_argument(
+        "--orig-tarball",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="include orig tarball in upload",
+    )
+    parser.add_argument(
         "-D",
         "--debian",
         action="store_true",
@@ -462,6 +468,7 @@ def create_source_pkg_quilt(
     build: pathlib.Path,
     repo: pathlib.Path,
     orig: Optional[pathlib.Path],
+    include_orig: bool = True,
 ):
     source = config["pkg"]["source"]["Source"]
     debian = build / "debian"
@@ -534,7 +541,10 @@ def create_source_pkg_quilt(
 
 
 def create_source_pkg_native(
-    config: Config, dest: pathlib.Path, build: pathlib.Path, repo: pathlib.Path
+    config: Config,
+    dest: pathlib.Path,
+    build: pathlib.Path,
+    repo: pathlib.Path,
 ):
     source = config["pkg"]["source"]["Source"]
     debian = build / "debian"
@@ -595,6 +605,7 @@ def create_source_pkg(
     dest: pathlib.Path,
     repo: pathlib.Path,
     orig: Optional[pathlib.Path],
+    include_orig: bool = True,
 ):
     source = config["pkg"]["source"]["Source"]
     build = dest / source
@@ -605,7 +616,7 @@ def create_source_pkg(
 
     try:
         if "orig" in config:
-            create_source_pkg_quilt(config, dest, build, repo, orig)
+            create_source_pkg_quilt(config, dest, build, repo, orig, include_orig)
         else:
             create_source_pkg_native(config, dest, build, repo)
 
@@ -614,7 +625,11 @@ def create_source_pkg(
 
         print(f"Creating {changes_file}")
         Spawn(
-            "dpkg-genchanges", "--build=source", f"-O../{changes_file}", cwd=build
+            "dpkg-genchanges",
+            "--build=source",
+            "-sa" if include_orig else "-sd",
+            f"-O../{changes_file}",
+            cwd=build,
         ).check_returncode()
     finally:
         shutil.rmtree(build)
@@ -641,7 +656,13 @@ def run() -> int:
         if cli.debian:
             create_debian(config, cli.dest / "debian")
         else:
-            create_source_pkg(config, cli.dest, cli.tree, cli.orig)
+            create_source_pkg(
+                config,
+                cli.dest,
+                cli.tree,
+                cli.orig,
+                include_orig=cli.orig_tarball,
+            )
     except ValueError as e:
         return eprint(str(e))
     except FileExistsError as e:
