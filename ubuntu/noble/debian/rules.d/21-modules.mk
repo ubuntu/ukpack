@@ -21,6 +21,7 @@ debian/linux-modules-$(krel).stamp: vmlinux
 	  find debian/$(pkgname) -name '*.ko' -print0 | \
 	    xargs -0 -r -n 1$(if $(JOBS), -P $(JOBS)) $(force-compress-modules)
 	fi
+	install -dm755 debian/$(pkgname)/usr/lib/linux/triggers
 	for i in debian/templates/modules.*; do
 	  sed -e 's|@krel@|$(krel)|g' -e "s|@kfile@|$$kfile|g" "$$i" > "debian/$(pkgname).$${i##*.}"
 	done
