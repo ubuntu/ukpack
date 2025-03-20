@@ -160,10 +160,10 @@ Provides = [
 ]
 Description = """
 Linux {{FLAVOUR}} kernel headers for version {{KVER}}
-This package provides kernel header files for version PKGVER.
+This package provides kernel header files for version {{KREL}}.
 
 This is for sites that want the latest kernel headers.  Please read
-/usr/share/doc/linux-headers-PKGVER-ABINUM/debian.README.gz for details.
+/usr/share/doc/linux-headers-{{KREL}}/debian.README.gz for details.
 """
 
 #[pkg.doc]
