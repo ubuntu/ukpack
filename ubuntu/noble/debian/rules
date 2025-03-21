@@ -40,6 +40,9 @@ export DEB_BUILD_GNU_TYPE	:= $(DEB_BUILD_GNU_TYPE)
 export DEB_HOST_ARCH		:= $(DEB_HOST_ARCH)
 export DEB_HOST_GNU_TYPE	:= $(DEB_HOST_GNU_TYPE)
 
+packages-indep	:= $(shell dh_listpackages -i)
+packages-arch	:= $(shell dh_listpackages -a)
+
 include debian/config.mk
 
 config			:= $(config-$(DEB_HOST_ARCH))
@@ -59,6 +62,7 @@ karch-s390x	:= s390
 karch		:= $(karch-$(DEB_HOST_ARCH))
 
 ifneq ($(DEB_BUILD_ARCH),$(DEB_HOST_ARCH))
+packages-arch	:= $(filter-out linux-$(flavour) linux-headers-%,$(packages-arch))
 ARCH		:= $(karch)
 CROSS_COMPILE	:= $(DEB_HOST_GNU_TYPE)-
 endif
@@ -80,11 +84,8 @@ KMAKE := $(strip $(MAKE) \
 	KBUILD_BUILD_VERSION='$(upload-number)' \
 	CFLAGS_MODULE='-DPKG_ABI=$(abi-number)')
 
-lock := flock -w 60 -xF debian/lock
-
-packages-indep	:= $(shell dh_listpackages -i)
-packages-arch	:= $(shell dh_listpackages -a)
-pkgname		 = $(@:debian/%.stamp=%)
+lock	:= flock -w 60 -xF debian/lock
+pkgname	 = $(@:debian/%.stamp=%)
 
 .PHONY: all
 all: binary
