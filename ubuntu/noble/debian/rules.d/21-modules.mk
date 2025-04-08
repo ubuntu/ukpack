@@ -38,9 +38,7 @@ debian/linux-modules-$(krel).stamp: vmlinux
 	dh_installdocs -p$(pkgname)
 	dh_compress -p$(pkgname)
 	dh_fixperms -p$(pkgname) -X/boot/System.map-$(krel)
-	dh_makeshlibs -p$(pkgname)
 	dh_installdeb -p$(pkgname)
-	#dh_installdebconf -p$(pkgname)
 	dh_md5sums -p$(pkgname)
 	$(lock) dh_gencontrol -p$(pkgname)
 	# disable package compression if all modules are compressed

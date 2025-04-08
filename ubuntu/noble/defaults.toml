@@ -7,15 +7,23 @@ vdso-install = "vdso_install"
 install-mod-strip = "1"
 
 [amd64]
+tools = "usbip acpidbg rtla cpupower perf bpftool x86"
 [arm64]
+tools = "usbip rtla cpupower perf bpftool"
 [armhf]
+tools = "usbip rtla cpupower perf bpftool"
 [i386]
+tools = "usbip acpidbg rtla cpupower perf bpftool x86"
 [ppc64el]
+tools = "usbip rtla cpupower perf bpftool"
 vdso-install = ""
 [riscv64]
+tools = "usbip rtla cpupower perf bpftool"
 install-mod-strip = "--strip-debug --discard-locals"
 [s390x]
+tools = "usbip rtla cpupower perf bpftool"
 [x32]
+tools = "usbip rtla cpupower perf bpftool x86"
 
 [pkg.source]
 Section = "devel"
@@ -35,7 +43,7 @@ Depends = [
   "linux-headers-{{FLAVOUR}} (= ${binary:Version})",
 ]
 Recommends = [
-  #"linux-tools-{{KREL}}",
+  "linux-tools-{{FLAVOUR}}",
   "ubuntu-kernel-accessories",
 ]
 Description = """
@@ -68,6 +76,20 @@ Depends = [
 Description = """
 Linux {{FLAVOUR}} kernel headers
 This package will always depend on the latest {{FLAVOUR}} kernel headers
+available.
+"""
+
+[pkg.meta-tools]
+Package = "linux-tools-{{FLAVOUR}}"
+Section = "kernel"
+Provides = "linux-tools"
+Depends = [
+  "${misc:Depends}",
+  "linux-tools-{{KREL}}",
+]
+Description = """
+Linux {{FLAVOUR}} kernel tools
+This package will always depend on the latest {{FLAVOUR}} kernel tools
 available.
 """
 
@@ -110,7 +132,7 @@ Recommends = [
 ]
 Suggests = [
   #"fdutils",
-  #"${S:Source}-tools",
+  "linux-tools-{{KREL}}",
   "linux-headers-{{KREL}}",
 ]
 Description = """
@@ -164,6 +186,41 @@ This package provides kernel header files for version {{KREL}}.
 
 This is for sites that want the latest kernel headers.  Please read
 /usr/share/doc/linux-headers-{{KREL}}/debian.README.gz for details.
+"""
+
+[pkg.tools]
+Package = "linux-tools-{{KREL}}"
+Section = "devel"
+Priority = "optional"
+Depends = [
+  "${misc:Depends}",
+  "${shlibs:Depends}",
+  "libc6 (>= 2.38)",
+  "libudev1 (>= 183)",
+  "linux-tools-common",
+]
+Build-Depends-Arch = [
+  "default-jdk-headless",
+  "libcap-dev",
+  "libdw-dev",
+  "libnuma-dev",
+  "libpci-dev",
+  "libslang2-dev",
+  "libstdc++-dev",
+  "libtraceevent-dev",
+  "libtracefs-dev",
+  "libudev-dev",
+  "libunwind-dev",
+  "uuid-dev",
+  "pkg-config",
+  "python3-dev",
+  "python3-setuptools",
+]
+Description = """"
+Linux {{FLAVOUR}} tools for version {{KVER}}
+This package provides the architecture dependant parts for kernel
+version locked tools (such as perf and x86_energy_perf_policy) for
+version {{KREL}}.
 """
 
 #[pkg.doc]

@@ -46,6 +46,7 @@ packages-arch	:= $(shell dh_listpackages -a)
 include debian/config.mk
 
 config			:= $(config-$(DEB_HOST_ARCH))
+tools			:= $(tools-$(DEB_HOST_ARCH))
 gcc			:= $(gcc-$(DEB_HOST_ARCH))
 vdso-install		:= $(vdso-install-$(DEB_HOST_ARCH))
 install-mod-strip	:= $(install-mod-strip-$(DEB_HOST_ARCH))
@@ -62,7 +63,8 @@ karch-s390x	:= s390
 karch		:= $(karch-$(DEB_HOST_ARCH))
 
 ifneq ($(DEB_BUILD_ARCH),$(DEB_HOST_ARCH))
-packages-arch	:= $(filter-out linux-$(flavour) linux-headers-%,$(packages-arch))
+packages-arch	:= $(filter-out linux-$(flavour) linux-headers-% linux-tools-%,$(packages-arch))
+tools		:=
 ARCH		:= $(karch)
 CROSS_COMPILE	:= $(DEB_HOST_GNU_TYPE)-
 endif
@@ -84,8 +86,9 @@ KMAKE := $(strip $(MAKE) \
 	KBUILD_BUILD_VERSION='$(upload-number)' \
 	CFLAGS_MODULE='-DPKG_ABI=$(abi-number)')
 
-lock	:= flock -w 60 -xF debian/lock
-pkgname	 = $(@:debian/%.stamp=%)
+lock     := flock -w 60 -xF debian/lock
+pkgname   = $(@:debian/%.stamp=%)
+packages  = $(packages-indep) $(packages-arch)
 
 .PHONY: all
 all: binary
@@ -100,8 +103,8 @@ binary: binary-indep binary-arch
 .PHONY: clean
 clean:
 	@rm -rf .config \
-	  $(patsubst %,debian/%,$(packages-indep) $(packages-arch)) \
-	  $(patsubst %,debian/%.*,$(packages-indep) $(packages-arch))
+	  $(patsubst %,debian/%,$(packages)) \
+	  $(patsubst %,debian/%.*,$(packages))
 	dh_clean
 
 .PHONY: build-indep
@@ -109,7 +112,7 @@ build-indep:
 	@: === $@ ===
 
 .PHONY: build-arch
-build-arch: vmlinux
+build-arch: vmlinux $(tools:%=build-%)
 	@: === $@ ===
 
 .PHONY: binary-indep

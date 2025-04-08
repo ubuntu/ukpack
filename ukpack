@@ -340,9 +340,11 @@ class Config:
             self._write_pkg(cfile, pkgs["meta"])
             self._write_pkg(cfile, pkgs["meta-image"])
             self._write_pkg(cfile, pkgs["meta-headers"])
+            self._write_pkg(cfile, pkgs["meta-tools"])
             self._write_pkg(cfile, pkgs["image"])
             self._write_pkg(cfile, pkgs["modules"])
             self._write_pkg(cfile, pkgs["headers"])
+            self._write_pkg(cfile, pkgs["tools"])
 
     def write_changelog(self, path: pathlib.Path):
         with open(self.path, "rb") as src:
@@ -356,6 +358,7 @@ class Config:
     def write_config_mk(self, path: pathlib.Path):
         per_arch_options = [
             "config",
+            "tools",
             "gcc",
             "vdso-install",
             "install-mod-strip",
