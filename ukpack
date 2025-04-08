@@ -382,6 +382,18 @@ class Config:
 
 
 def parse_args() -> argparse.Namespace:
+    def file(path: str) -> pathlib.Path:
+        path = pathlib.Path(path)
+        if not path.is_file():
+            raise ValueError
+        return path
+
+    def directory(path: str) -> pathlib.Path:
+        path = pathlib.Path(path)
+        if not path.is_dir():
+            raise ValueError
+        return path
+
     here = pathlib.Path()
 
     parser = argparse.ArgumentParser(
@@ -390,7 +402,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "config",
-        type=pathlib.Path,
+        type=file,
         help="Debian changelog with configuration in TOML footer",
     )
     parser.add_argument(
@@ -402,20 +414,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "-o",
         "--orig",
-        type=pathlib.Path,
+        type=file,
         help="path to orig tarball",
     )
     parser.add_argument(
         "-t",
         "--tree",
-        type=pathlib.Path,
+        type=directory,
         default=here,
         help="path to Linux kernel git tree",
     )
     parser.add_argument(
         "-d",
         "--dest",
-        type=pathlib.Path,
+        type=directory,
         default=here,
         help="output path",
     )
@@ -483,8 +495,6 @@ def create_source_pkg_quilt(
     orig_tarball_xz = dest / f"{source}_{config['upstream-version']}.orig.tar.xz"
     orig_tarball_gz = dest / f"{source}_{config['upstream-version']}.orig.tar.gz"
     if orig:
-        if not orig.is_file():
-            raise OSError(errno.ENOENT, os.strerror(errno.ENOENT), orig)
         if orig.suffix == ".xz":
             orig_tarball = orig_tarball_xz
         elif orig.suffix == ".gz":
