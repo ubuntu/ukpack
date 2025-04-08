@@ -47,7 +47,7 @@ include debian/config.mk
 
 config			:= $(config-$(DEB_HOST_ARCH))
 tools			:= $(tools-$(DEB_HOST_ARCH))
-gcc			:= $(gcc-$(DEB_HOST_ARCH))
+cc			:= $(cc-$(DEB_HOST_ARCH))
 vdso-install		:= $(vdso-install-$(DEB_HOST_ARCH))
 install-mod-strip	:= $(install-mod-strip-$(DEB_HOST_ARCH))
 force-compress-modules	:= $(force-compress-modules-$(DEB_HOST_ARCH))
@@ -68,10 +68,15 @@ tools		:=
 ARCH		:= $(karch)
 CROSS_COMPILE	:= $(DEB_HOST_GNU_TYPE)-
 endif
-ifneq ($(gcc),)
-ifeq ($(CC),)
-CC		:= $(CROSS_COMPILE)$(gcc)
-endif
+
+ifneq ($(cc),)
+  ifneq ($(filter clang-%,$(cc)),)
+    LLVM := -$(lastword $(subst -,$(space),$(cc)))
+  else ifeq ($(cc),clang)
+    LLVM := 1
+  else ifeq ($(CC),)
+    CC := $(CROSS_COMPILE)$(cc)
+  endif
 endif
 
 JOBS := $(subst parallel=,,$(filter parallel=%,$(subst $(comma),$(space),$(DEB_BUILD_OPTIONS))))
@@ -79,9 +84,10 @@ JOBS := $(subst parallel=,,$(filter parallel=%,$(subst $(comma),$(space),$(DEB_B
 KMAKE := $(strip $(MAKE) \
 	$(if $(JOBS),-j$(JOBS)) \
 	$(if $(ARCH),ARCH=$(ARCH)) \
-	$(if $(CROSS_COMPILE),CROSS_COMPILE=$(CROSS_COMPILE)) \
+	$(if $(CROSS_COMPILE),$(if $(LLVM),,CROSS_COMPILE=$(CROSS_COMPILE))) \
 	$(if $(CC),CC=$(CC)) \
 	$(if $(HOSTCC),HOSTCC=$(HOSTCC)) \
+	$(if $(LLVM),LLVM=$(LLVM)) \
 	KERNELRELEASE='$(krel)' \
 	KBUILD_BUILD_VERSION='$(upload-number)' \
 	CFLAGS_MODULE='-DPKG_ABI=$(abi-number)')

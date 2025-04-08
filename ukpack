@@ -359,7 +359,7 @@ class Config:
         per_arch_options = [
             "config",
             "tools",
-            "gcc",
+            "cc",
             "vdso-install",
             "install-mod-strip",
             "force-compress-modules",
