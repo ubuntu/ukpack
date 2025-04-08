@@ -484,7 +484,7 @@ def create_source_pkg_quilt(
             orig_tarball = orig_tarball_gz
         if not orig_tarball.is_file():
             print(f"Creating {orig_tarball.name} symlink")
-            orig_tarball.symlink_to(orig)
+            orig_tarball.symlink_to(orig.relative_to(dest, walk_up=True))
     elif orig_tarball_xz.is_file():
         orig_tarball = orig_tarball_xz
     elif orig_tarball_gz.is_file():
