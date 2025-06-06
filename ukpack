@@ -28,6 +28,7 @@ UBUNTU_RELEASES = {
     "noble": "24.04",
     "oracular": "24.10",
     "plucky": "25.04",
+    "questing": "25.10",
 }
 DEB_SOURCE_FIELDS = [
     "Source",
