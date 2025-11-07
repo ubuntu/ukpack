@@ -29,6 +29,7 @@ UBUNTU_RELEASES = {
     "oracular": "24.10",
     "plucky": "25.04",
     "questing": "25.10",
+    "resolute": "26.04",
 }
 DEB_SOURCE_FIELDS = [
     "Source",
