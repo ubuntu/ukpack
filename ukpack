@@ -82,19 +82,32 @@ DEB_BINARY_FIELDS = [
 ]
 
 
-def merge(a: dict, b: dict, path: list[str] = []) -> dict:
+def merge(a: dict, b: dict) -> dict:
     """Merge dictionary b into dictionary a."""
-    for key, new in b.items():
+    stack = []
+    path = []
+    b = iter(b.items())
+    while True:
+        try:
+            (key, new) = next(b)
+        except StopIteration:
+            if not stack:
+                return a
+            a, b = stack.pop()
+            path.pop()
+            continue
+
         old = a.get(key)
         if isinstance(old, dict):
+            path.append(key)
             if isinstance(new, dict):
-                merge(old, new, [*path, key])
+                stack.append((a, b))
+                a = old
+                b = iter(new.items())
             else:
-                pathstr = ".".join([*path, key])
-                raise ValueError(f"Overwriting table at {pathstr})")
+                raise TypeError(f"Overwriting table at {'.'.join(path)})")
         else:
             a[key] = new
-    return a
 
 
 class Spawn(subprocess.Popen):
