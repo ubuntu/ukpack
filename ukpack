@@ -629,6 +629,15 @@ def parse_args() -> argparse.Namespace:
             raise ValueError
         return path
 
+    def mkdir(path: str) -> Path:
+        path = Path(path)
+        if path.is_dir():
+            return path
+        if path.exists() or not path.parent.is_dir():
+            raise ValueError
+        path.mkdir(mode=0o755)
+        return path
+
     here = Path()
 
     parser = argparse.ArgumentParser(
@@ -662,7 +671,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "-d",
         "--dest",
-        type=directory,
+        type=mkdir,
         default=here,
         help="output path",
     )
