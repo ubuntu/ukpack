@@ -221,7 +221,7 @@ class Config:
             )
 
         abi = match.group(1)
-        upload = match.group(2) or "1"
+        upload = match.group(2) or "0"
         return orig, rev, abi, upload
 
     @staticmethod
