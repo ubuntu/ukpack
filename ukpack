@@ -7,8 +7,6 @@
 from __future__ import annotations
 
 import argparse
-import errno
-import os
 import re
 import shutil
 import subprocess
@@ -16,6 +14,7 @@ import sys
 import tarfile
 from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn, Self
+from urllib.request import urlretrieve
 
 if TYPE_CHECKING:
     import io
@@ -23,6 +22,7 @@ if TYPE_CHECKING:
 
 import tomllib
 
+KORG = "https://www.kernel.org/pub/linux/kernel"
 UBUNTU_RELEASES = {
     "focal": "20.04",
     "jammy": "22.04",
@@ -118,6 +118,7 @@ class Spawn(subprocess.Popen):
         stdin=subprocess.DEVNULL,
         stdout=None,
         stderr=None,
+        silent=False,
         **kwargs: any,
     ) -> Self:
         if isinstance(stdin, Path):
@@ -129,7 +130,8 @@ class Spawn(subprocess.Popen):
         cmd = args[0]
         if not isinstance(cmd, list):
             cmd = list(args)
-        print(f"+ {' '.join(cmd)}")
+        if not silent:
+            print(f"+ {' '.join(cmd)}")
         try:
             super().__init__(cmd, stdin=stdin, stdout=stdout, stderr=stderr, **kwargs)
         finally:
@@ -296,6 +298,7 @@ class Config:
         flavour = name[6:]
         env["pkg"]["source"]["Source"] = name
         env["version"] = version
+        env.setdefault("orig", f"v{orig}")
         env["upstream-version"] = orig
         env["package-revision"] = rev
         env["abi-number"] = abi
@@ -305,6 +308,13 @@ class Config:
         env["distro"] = distro
         env["flavour"] = flavour
         env["arch"] = " ".join(sorted(self.arch))
+
+        with (datadir / "releases.toml").open("rb") as rfile:
+            if data := tomllib.load(rfile).get(env["orig"]):
+                env["orig-commit"] = data["commit"]
+                env["orig-url"] = f"{KORG}/{data['path']}"
+                env["orig-sha256"] = data["sha256"]
+
         self._massage_packages()
 
     def __getitem__(self, key: str) -> any:
@@ -441,6 +451,22 @@ def numeric_owner(info: tarfile.TarInfo) -> tarfile.TarInfo:
     return info
 
 
+def verify_orig_sha256(changes: Path, sha256: str) -> None:
+    sh256line = re.compile(r" ([0-9a-f]{64}) [0-9]+ .*\.orig.tar.[gx]z\n")
+    with changes.open("rt") as chf:
+        for line in chf:
+            if match := sh256line.fullmatch(line):
+                found = match.group(1)
+                if sha256 == found:
+                    return
+                raise ValueError(
+                    "SHA256 of orig tarball did not match:\n"
+                    f" expected {sha256}\n"
+                    f" found    {found}"
+                )
+    raise ValueError("Could not find SHA256 of orig tarball in changes file.")
+
+
 def create_source_pkg_quilt(
     config: Config,
     dest: Path,
@@ -450,7 +476,6 @@ def create_source_pkg_quilt(
 ) -> None:
     source = config["pkg"]["source"]["Source"]
     debian = build / "debian"
-
     orig_tarball_xz = dest / f"{source}_{config['upstream-version']}.orig.tar.xz"
     orig_tarball_gz = dest / f"{source}_{config['upstream-version']}.orig.tar.gz"
     if orig:
@@ -466,10 +491,21 @@ def create_source_pkg_quilt(
     elif orig_tarball_gz.is_file():
         orig_tarball = orig_tarball_gz
     else:
-        raise OSError(errno.ENOENT, os.strerror(errno.ENOENT), orig_tarball_xz)
 
-    print("Creating debian directory")
-    create_debian(config, debian)
+        def reporthook(blocks: int, blocksize: int, totalsize: int) -> None:
+            print(f"\r{100 * blocks * blocksize / totalsize:6.2f}%", end="")
+
+        url = config["orig-url"]
+        orig_tarball = orig_tarball_xz
+        print(f"Downloading {url}")
+        print("- use -o/--orig to use a previous download")
+        try:
+            urlretrieve(url, filename=orig_tarball, reporthook=reporthook)  # noqa: S310
+        except:
+            orig_tarball.unlink()
+            raise
+        finally:
+            print()
 
     patches = debian / "patches"
     patches.mkdir(mode=0o755)
@@ -479,7 +515,7 @@ def create_source_pkg_quilt(
         "git",
         "diff",
         "-U0",
-        f"{config['orig']}..{config['head']}",
+        f"{config['orig-commit']}..{config['head']}",
         "--",
         ":(exclude)debian/",
         stdout=patch_file,
@@ -526,8 +562,6 @@ def create_source_pkg_native(
 ) -> None:
     source = config["pkg"]["source"]["Source"]
     debian = build / "debian"
-    print("Creating debian directory")
-    create_debian(config, debian)
 
     tarball = f"{source}_{config['version']}.tar.xz"
     print(f"Creating {tarball}")
@@ -582,6 +616,7 @@ def create_source_pkg(
     repo: Path,
     orig: Path | None = None,
     *,
+    native: bool = False,
     include_orig: bool = True,
 ) -> None:
     source = config["pkg"]["source"]["Source"]
@@ -589,31 +624,41 @@ def create_source_pkg(
     build.mkdir(mode=0o755)
 
     buildinfo_file = f"{source}_{config['version']}_source.buildinfo"
-    changes_file = f"{source}_{config['version']}_source.changes"
+    changes_file = dest / f"{source}_{config['version']}_source.changes"
 
     try:
-        if "orig" in config:
-            create_source_pkg_quilt(config, dest, build, repo, orig)
-        else:
+        print("Creating debian directory")
+        create_debian(config, build / "debian")
+
+        if native:
             create_source_pkg_native(config, dest, build, repo)
+        else:
+            create_source_pkg_quilt(config, dest, build, repo, orig)
 
         print(f"Creating {buildinfo_file}")
         Spawn("dpkg-genbuildinfo", "--build=source", cwd=build).check_returncode()
 
-        print(f"Creating {changes_file}")
+        print(f"Creating {changes_file.name}")
         Spawn(
             "dpkg-genchanges",
             "--build=source",
             "-sa" if include_orig else "-sd",
-            f"-O../{changes_file}",
+            f"-O../{changes_file.name}",
             cwd=build,
         ).check_returncode()
     finally:
         shutil.rmtree(build)
 
+    if not native:
+        try:
+            verify_orig_sha256(changes_file, config["orig-sha256"])
+        except:
+            changes_file.unlink()
+            raise
+
     print("Source package built successfully \\o/")
-    print(f"Sign package:    debsign {dest / changes_file}")
-    print(f"Upload package:  dput <PPA> {dest / changes_file}")
+    print(f"Sign package:    debsign {changes_file}")
+    print(f"Upload package:  dput <PPA> {changes_file}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -673,13 +718,19 @@ def parse_args() -> argparse.Namespace:
         "--dest",
         type=mkdir,
         default=here,
-        help="output path",
+        help="output directory",
     )
     parser.add_argument(
-        "--orig-tarball",
+        "--include-orig",
         action=argparse.BooleanOptionalAction,
         default=True,
         help="include orig tarball in upload",
+    )
+    parser.add_argument(
+        "-N",
+        "--native",
+        action="store_true",
+        help='create "native" debian package without an orig tarball',
     )
     parser.add_argument(
         "-D",
@@ -703,16 +754,43 @@ def run() -> int:
     except FileNotFoundError as e:
         return eprint(f"{e.strerror}: '{e.filename}'")
 
+    if not args.native and not args.debian:
+        if "orig-commit" not in config:
+            return eprint(
+                f"Don't know version {config['orig']}.\n"
+                "If this is a pre-release (-rc) kernel please use -N."
+            )
+        if (
+            Spawn(
+                "git",
+                "merge-base",
+                "--is-ancestor",
+                config["orig-commit"],
+                config["head"],
+                cwd=args.tree,
+                silent=True,
+            ).wait()
+            != 0
+        ):
+            return eprint(
+                f"{config['orig']} aka {config['orig-commit']} "
+                f"is not an ancestor of {config['head']}.\n"
+                f"Are you sure this kernel is based on {config['orig']}?"
+            )
+
     try:
         if args.debian:
-            create_debian(config, args.dest / "debian")
+            debian = args.dest / "debian"
+            print(f"Creating {debian}")
+            create_debian(config, debian)
         else:
             create_source_pkg(
                 config,
                 args.dest,
                 args.tree,
                 args.orig,
-                include_orig=args.orig_tarball,
+                native=args.native,
+                include_orig=args.include_orig,
             )
     except ValueError as e:
         return eprint(str(e))

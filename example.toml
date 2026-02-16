@@ -1,6 +1,6 @@
-linux-foo (6.8.0-1.1) noble; urgency=medium
+linux-example (6.8.12-1.1) noble; urgency=medium
 
-  * My first foo kernel.
+  * My first kernel package.
 
  -- Your Full Name <your@email.com>  Fri, 07 Mar 2025 16:10:55 +0100
 ---
@@ -13,10 +13,6 @@ arch = "amd64"
 #config = "./my_defconfig"
 # ..or just use the architecture's upstream defconfig
 config = "defconfig"
-
-# download https://www.kernel.org/pub/linux/kernel/v6.x/linux-6.8.tar.xz
-# and set the matching orig tag/sha1 below to build kernel packages faster
-#orig = "v6.8"
 
 [pkg.source]
 Maintainer = "Your Full Name <your@email.com>"
