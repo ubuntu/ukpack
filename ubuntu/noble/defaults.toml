@@ -112,6 +112,7 @@ Build-Depends-Arch = [
   "flex",
   "bison",
   "bc",
+  "cpio",
   "python3:native",
   "perl:native",
   "gawk",
