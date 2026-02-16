@@ -9,16 +9,17 @@ from __future__ import annotations
 import argparse
 import errno
 import os
-import pathlib
 import re
 import shutil
 import subprocess
 import sys
 import tarfile
+from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn, Self
 
 if TYPE_CHECKING:
     import io
+    import types
 
 import tomllib
 
@@ -118,9 +119,13 @@ class Spawn(subprocess.Popen):
         stdout=None,
         stderr=None,
         **kwargs: any,
-    ) -> None:
-        if isinstance(stdout, pathlib.Path):
+    ) -> Self:
+        if isinstance(stdin, Path):
+            stdin = stdin.open("rb")
+        if isinstance(stdout, Path):
             stdout = stdout.open("wb")
+        if isinstance(stderr, Path):
+            stderr = stderr.open("wb")
         cmd = args[0]
         if not isinstance(cmd, list):
             cmd = list(args)
@@ -128,8 +133,12 @@ class Spawn(subprocess.Popen):
         try:
             super().__init__(cmd, stdin=stdin, stdout=stdout, stderr=stderr, **kwargs)
         finally:
+            if hasattr(stdin, "close"):
+                stdin.close()
             if hasattr(stdout, "close"):
                 stdout.close()
+            if hasattr(stderr, "close"):
+                stderr.close()
 
     def _fail(self) -> NoReturn:
         raise subprocess.CalledProcessError(returncode=self.returncode, cmd=self.args)
@@ -139,14 +148,14 @@ class Spawn(subprocess.Popen):
         if self.returncode != 0:
             self._fail()
 
-    def __enter_(self) -> Self:
-        return self
-
-    def __exit__(self, typ, value, traceback) -> bool:
-        if hasattr(self.stdin, "close"):
-            self.stdin.close()
-        self.wait()
-        if self.returncode != 0 and (typ is None or typ is BrokenPipeError):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        exc_traceback: types.TracebackType | None,
+    ) -> bool:
+        super().__exit__(exc_type, exc_value, exc_traceback)
+        if self.returncode != 0 and (exc_type is None or exc_type is BrokenPipeError):
             self._fail()
         return False
 
@@ -158,7 +167,7 @@ class Config:
     )
 
     @staticmethod
-    def _parse_config(config: pathlib.Path) -> (str, dict):
+    def _parse_config(config: Path) -> (str, dict):
         with config.open("rb") as cfile:
             firstline = cfile.readline().decode("utf-8")
             for line in cfile:
@@ -260,7 +269,7 @@ class Config:
         if build_depends_indep:
             source["Build-Depends-Indep"] = sorted(build_depends_indep)
 
-    def __init__(self, datadir: pathlib.Path, config: pathlib.Path) -> None:
+    def __init__(self, datadir: Path, config: Path) -> None:
         """Get value tree from given input config file."""
         firstline, overrides = self._parse_config(config)
         name, version, distro = self._parse_firstline(firstline)
@@ -329,7 +338,7 @@ class Config:
 
         return self.CONTROL_TEMPLATE.sub(replace, val)
 
-    def _write_prop(self, out: io.TextIOBase, key: str, val: any) -> None:
+    def _write_prop(self, out: io.TextIOBase, key: str, val: list | str) -> None:
         if isinstance(val, list):
             if len(val) > 1:
                 out.write(f"{key}:\n")
@@ -354,7 +363,7 @@ class Config:
             # TODO: Handle XS-, XB-, and XC- fields
         out.write("\n")
 
-    def write_control(self, path: pathlib.Path) -> None:
+    def write_control(self, path: Path) -> None:
         pkgs = self.env["pkg"]
         with path.open("xt", encoding="utf-8") as cfile:
             self._write_source(cfile, pkgs["source"])
@@ -367,7 +376,7 @@ class Config:
             self._write_pkg(cfile, pkgs["headers"])
             self._write_pkg(cfile, pkgs["tools"])
 
-    def write_changelog(self, path: pathlib.Path) -> None:
+    def write_changelog(self, path: Path) -> None:
         with self.path.open("rb") as src, path.open("xb") as dst:
             while True:
                 line = src.readline()
@@ -375,7 +384,7 @@ class Config:
                     break
                 dst.write(line)
 
-    def write_config_mk(self, path: pathlib.Path) -> None:
+    def write_config_mk(self, path: Path) -> None:
         per_arch_options = [
             "config",
             "tools",
@@ -396,72 +405,7 @@ class Config:
             dst.write(f"upload-number := {self.env['upload-number']}\n")
 
 
-def parse_args() -> argparse.Namespace:
-    def file(path: str) -> pathlib.Path:
-        path = pathlib.Path(path)
-        if not path.is_file():
-            raise ValueError
-        return path
-
-    def directory(path: str) -> pathlib.Path:
-        path = pathlib.Path(path)
-        if not path.is_dir():
-            raise ValueError
-        return path
-
-    here = pathlib.Path()
-
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        description="Create Ubuntu kernel packaging",
-    )
-    parser.add_argument(
-        "config",
-        type=file,
-        help="Debian changelog with configuration in TOML footer",
-    )
-    parser.add_argument(
-        "--datadir",
-        type=pathlib.Path,
-        default=pathlib.Path(__file__).parent.resolve() / "ubuntu",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        "-o",
-        "--orig",
-        type=file,
-        help="path to orig tarball",
-    )
-    parser.add_argument(
-        "-t",
-        "--tree",
-        type=directory,
-        default=here,
-        help="path to Linux kernel git tree",
-    )
-    parser.add_argument(
-        "-d",
-        "--dest",
-        type=directory,
-        default=here,
-        help="output path",
-    )
-    parser.add_argument(
-        "--orig-tarball",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="include orig tarball in upload",
-    )
-    parser.add_argument(
-        "-D",
-        "--debian",
-        action="store_true",
-        help="just create the debian directory",
-    )
-    return parser.parse_args()
-
-
-def create_debian(config: Config, debian: pathlib.Path) -> None:
+def create_debian(config: Config, debian: Path) -> None:
     shutil.copytree(config.datadir / config["distro"] / "debian", debian)
     config.write_control(debian / "control")
     config.write_changelog(debian / "changelog")
@@ -499,10 +443,10 @@ def numeric_owner(info: tarfile.TarInfo) -> tarfile.TarInfo:
 
 def create_source_pkg_quilt(
     config: Config,
-    dest: pathlib.Path,
-    build: pathlib.Path,
-    repo: pathlib.Path,
-    orig: pathlib.Path | None = None,
+    dest: Path,
+    build: Path,
+    repo: Path,
+    orig: Path | None = None,
 ) -> None:
     source = config["pkg"]["source"]["Source"]
     debian = build / "debian"
@@ -576,9 +520,9 @@ def create_source_pkg_quilt(
 
 def create_source_pkg_native(
     config: Config,
-    dest: pathlib.Path,
-    build: pathlib.Path,
-    repo: pathlib.Path,
+    dest: Path,
+    build: Path,
+    repo: Path,
 ) -> None:
     source = config["pkg"]["source"]["Source"]
     debian = build / "debian"
@@ -634,9 +578,10 @@ def create_source_pkg_native(
 
 def create_source_pkg(
     config: Config,
-    dest: pathlib.Path,
-    repo: pathlib.Path,
-    orig: pathlib.Path | None = None,
+    dest: Path,
+    repo: Path,
+    orig: Path | None = None,
+    *,
     include_orig: bool = True,
 ) -> None:
     source = config["pkg"]["source"]["Source"]
@@ -671,29 +616,94 @@ def create_source_pkg(
     print(f"Upload package:  dput <PPA> {dest / changes_file}")
 
 
+def parse_args() -> argparse.Namespace:
+    def file(path: str) -> Path:
+        path = Path(path)
+        if not path.is_file():
+            raise ValueError
+        return path
+
+    def directory(path: str) -> Path:
+        path = Path(path)
+        if not path.is_dir():
+            raise ValueError
+        return path
+
+    here = Path()
+
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description="Create Ubuntu kernel packaging",
+    )
+    parser.add_argument(
+        "config",
+        type=file,
+        help="Debian changelog with configuration in TOML footer",
+    )
+    parser.add_argument(
+        "--datadir",
+        type=Path,
+        default=Path(__file__).parent.resolve() / "ubuntu",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "-o",
+        "--orig",
+        type=file,
+        help="path to orig tarball",
+    )
+    parser.add_argument(
+        "-t",
+        "--tree",
+        type=directory,
+        default=here,
+        help="path to Linux kernel git tree",
+    )
+    parser.add_argument(
+        "-d",
+        "--dest",
+        type=directory,
+        default=here,
+        help="output path",
+    )
+    parser.add_argument(
+        "--orig-tarball",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="include orig tarball in upload",
+    )
+    parser.add_argument(
+        "-D",
+        "--debian",
+        action="store_true",
+        help="just create the debian directory",
+    )
+    return parser.parse_args()
+
+
 def run() -> int:
     def eprint(*args: any, **kwargs: any) -> int:
         print(*args, file=sys.stderr, **kwargs)
         return 1
 
-    cli = parse_args()
+    args = parse_args()
     try:
-        config = Config(cli.datadir, cli.config)
+        config = Config(args.datadir, args.config)
     except ValueError as e:
         return eprint(str(e))
     except FileNotFoundError as e:
         return eprint(f"{e.strerror}: '{e.filename}'")
 
     try:
-        if cli.debian:
-            create_debian(config, cli.dest / "debian")
+        if args.debian:
+            create_debian(config, args.dest / "debian")
         else:
             create_source_pkg(
                 config,
-                cli.dest,
-                cli.tree,
-                cli.orig,
-                include_orig=cli.orig_tarball,
+                args.dest,
+                args.tree,
+                args.orig,
+                include_orig=args.orig_tarball,
             )
     except ValueError as e:
         return eprint(str(e))
