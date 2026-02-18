@@ -101,6 +101,31 @@ Usually it has the form `<upstream>-<abi>.<upload>` where
   Kernel packages with higher upload numbers will _replace_ kernel packages
   with lower upload numbers if the upstream and abi numbers are the same.
 
+### Configure your kernel
+
+There are 3 options to configure your kernel:
+
+- __Use a defconfig checked into your kernel tree under `arch/<arch>/configs/`.__  
+  Set `config = "my_defconfig"`.  
+  It must end in `_defconfig`.
+- __Use an out-of-tree defconfig file.__  
+  Set `config = "/path/to/my_defconfig"`.  
+  The path is relative to the changelog/metadata file, must contain a `/` and end in `_defconfig`.
+- __Use an out-of-tree full configuration file.__  
+  Set `config = "/path/to/my.config"`.  
+  The path is relative to the changelog/metadata file and must not end in `_defconfig`.
+  When building in the PPA it will be checked that the config is not changed by `make syncconfig`,
+  so the config file must be generated with the same compiler as used in the PPA.
+
+If you're building a kernel for multiple architectures you can overwrite the config used for a
+specific architecture like this:
+```toml
+[amd64]
+config = "./my_intel_defconfig"
+[riscv64]
+config = "defconfig" # just use defconfig on riscv64
+```
+
 ### Update your kernel
 
 To create a new version of your kernel,
