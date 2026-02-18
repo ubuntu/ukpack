@@ -2,11 +2,12 @@
 
 ## What is this?
 
-This is a tool to create an [Ubuntu][] kernel source package from any [Linux][]
-git repository.
+This is a tool to create an [Ubuntu] kernel source package so you can build any [Linux
+git repository][repo] in a [PPA] and produce packages that look like regular Ubuntu kernels.
 
 [Ubuntu]: https://ubuntu.com/
-[Linux]: https://www.kernel.org/linux.html
+[repo]: https://git.kernel.org/
+[PPA]: https://launchpad.net/ubuntu/+ppas
 
 ## How?
 
@@ -48,7 +49,7 @@ For example which kernel configuration to use and which architecture(s) to build
 This is appended in [TOML] format after the `---`.
 Here we can also overwrite various data included in the packages, like fx. who maintains them.
 
-[TOML]: https://toml.io/en/
+[TOML]: https://toml.io/
 
 #### Run ukpack
 
@@ -88,15 +89,17 @@ The kernel package is named from the first line of the changelog/metadata file
 and must always begin with `linux-`.
 The rest of the name is used to distinguish the kernel from the generic Ubuntu kernel and other series.
 
-The version number must begin with the upstream kernel release your kernel tree is based on followed by a dash (-) and the package version.
+The version number must begin with the upstream kernel release your kernel tree is based on
+followed by a dash (-) and the package version.
 Usually it has the form `<upstream>-<abi>.<upload>` where
 
-* **upstream** The upstream kernel release your kernel tree is based on. Eg. the latest tag.
-* **abi** A rolling number to designate the version of your kernel package.
-  You can have multiple versions of the same kernel installed as long as they have different abi numbers.
-* **upload** If an error happens when building the kernel in a PPA you will need to correct the error and upload a new version.
-  However the PPA will require a newer version, so you can bump this number to try again.
-  Kernel packages with higher upload numbers will replace kernel packages with lower upload numbers if the upstream and abi numbers are the same.
+* __upstream__ The upstream kernel release your kernel tree is based on. Eg. the latest tag.
+* __abi__ A rolling number to designate the version of your kernel package.
+  You can have multiple versions of the same kernel installed as long as they have different upstream and/or abi numbers.
+* __upload__ If an error happens when building the kernel in a PPA you will need to correct the error and upload a new version.
+  However the PPA will require a newer version number, so you can bump this number to try again.
+  Kernel packages with higher upload numbers will _replace_ kernel packages
+  with lower upload numbers if the upstream and abi numbers are the same.
 
 ### Update your kernel
 
