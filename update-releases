@@ -76,6 +76,6 @@ def write_toml(file: Path) -> None:
                 out.write(f'{key}="{entry[key]}"\n')
 
 
-here = Path(__file__).parent.resolve(strict=True)
+here = Path(__file__).resolve(strict=True).parent
 print("Writing ubuntu/releases.toml")
 write_toml(here / "ubuntu" / "releases.toml")

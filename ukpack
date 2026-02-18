@@ -697,7 +697,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--datadir",
         type=Path,
-        default=Path(__file__).parent.resolve() / "ubuntu",
+        default=Path(__file__).resolve().parent / "ubuntu",
         help=argparse.SUPPRESS,
     )
     parser.add_argument(
