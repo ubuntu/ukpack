@@ -15,7 +15,7 @@ git repository][repo] in a [PPA] and produce packages that look like regular Ubu
 
 Clone this repository
 ```
-git clone https://github.com/esmil/ukpack.git
+git clone https://github.com/ubuntu/ukpack.git
 ```
 and make sure you have the tools installed to build a Debian source package
 ```
