@@ -1,0 +1,248 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+arch = "amd64"
+config = "defconfig"
+head = "HEAD"
+vdso-install = "vdso_install"
+install-mod-strip = "1"
+
+[amd64]
+tools = "usbip acpidbg rtla cpupower perf bpftool x86"
+[arm64]
+tools = "usbip rtla cpupower perf bpftool"
+[armhf]
+tools = "usbip rtla cpupower perf bpftool"
+[i386]
+tools = "usbip acpidbg rtla cpupower perf bpftool x86"
+[ppc64el]
+tools = "usbip rtla cpupower perf bpftool"
+vdso-install = ""
+[riscv64]
+tools = "usbip rtla cpupower perf bpftool"
+install-mod-strip = "--strip-debug --discard-locals"
+[s390x]
+tools = "usbip rtla cpupower perf bpftool"
+[x32]
+tools = "usbip rtla cpupower perf bpftool x86"
+
+[pkg.source]
+Section = "devel"
+Priority = "optional"
+Rules-Requires-Root = "no"
+Standards-Version = "4.6.2"
+Build-Depends = [
+  "debhelper-compat (= 13)",
+]
+
+[pkg.meta]
+Package = "linux-{{FLAVOUR}}"
+Section = "kernel"
+Depends = [
+  "${misc:Depends}",
+  "linux-image-{{FLAVOUR}} (= ${binary:Version})",
+  "linux-headers-{{FLAVOUR}} (= ${binary:Version})",
+]
+Recommends = [
+  "linux-tools-{{FLAVOUR}}",
+  "ubuntu-kernel-accessories",
+]
+Description = """
+Complete Linux {{FLAVOUR}} kernel and headers
+This package will always depend on the latest complete
+Linux {{FLAVOUR}} kernel and headers.
+"""
+
+[pkg.meta-image]
+Package = "linux-image-{{FLAVOUR}}"
+Section = "kernel"
+Depends = [
+  "${misc:Depends}",
+  "linux-image-{{KREL}}",
+  "linux-modules-{{KREL}}",
+  "linux-firmware",
+]
+Description = """
+Linux {{FLAVOUR}} kernel image
+This package will always depend on the latest {{FLAVOUR}} kernel packages.
+"""
+
+[pkg.meta-headers]
+Package = "linux-headers-{{FLAVOUR}}"
+Section = "kernel"
+Depends = [
+  "${misc:Depends}",
+  "linux-headers-{{KREL}}",
+]
+Description = """
+Linux {{FLAVOUR}} kernel headers
+This package will always depend on the latest {{FLAVOUR}} kernel headers
+available.
+"""
+
+[pkg.meta-tools]
+Package = "linux-tools-{{FLAVOUR}}"
+Section = "kernel"
+Provides = [
+  "linux-tools"
+]
+Depends = [
+  "${misc:Depends}",
+  "linux-tools-{{KREL}}",
+]
+Description = """
+Linux {{FLAVOUR}} kernel tools
+This package will always depend on the latest {{FLAVOUR}} kernel tools
+available.
+"""
+
+[pkg.image]
+Package = "linux-image-{{KREL}}"
+Section = "kernel"
+Priority = "optional"
+Provides = [
+  "linux-image",
+  "${misc:Provides}",
+]
+Depends = [
+  "${misc:Depends}",
+  "kmod",
+  "linux-modules-{{KREL}}",
+]
+Build-Depends-Arch = [
+  "libelf-dev:native",
+  "libssl-dev:native",
+  "flex",
+  "bison",
+  "bc",
+  "cpio",
+  "python3:native",
+  "perl:native",
+  "gawk",
+  "pahole",
+]
+Recommends = [
+  """grub-pc [amd64] | \
+     grub-efi-amd64 [amd64] | \
+     grub-efi-ia32 [amd64] | \
+     grub [amd64] | \
+     lilo [amd64] | \
+     flash-kernel [armhf arm64] | \
+     grub-efi-arm64 [arm64] | \
+     grub-efi-arm [armhf] | \
+     grub-ieee1275 [ppc64el]\
+  """,
+  "initramfs-tools",
+]
+Suggests = [
+  #"fdutils",
+  "linux-tools-{{KREL}}",
+  "linux-headers-{{KREL}}",
+]
+Description = """
+Linux {{FLAVOUR}} kernel image version {{KVER}}
+This package contains the Linux {{FLAVOUR}} kernel image version {{KVER}}.
+
+You likely do not want to install this package directly. Instead, install
+the linux-{{FLAVOUR}} meta-package, which will ensure that upgrades work
+correctly, and that supporting packages are also installed.
+"""
+
+[pkg.modules]
+Package = "linux-modules-{{KREL}}"
+Section = "kernel"
+Priority = "optional"
+Provides = [
+  "${misc:Provides}"
+]
+Depends = [
+  "${misc:Depends}"
+]
+Build-Depends-Arch = [
+  "kmod",
+  "zstd",
+]
+Description = """
+Linux {{FLAVOUR}} kernel modules for version {{KVER}}
+Contains the corresponding System.map file, the modules built by the
+packager, and scripts that try to ensure that the system is not left in an
+unbootable state after an update.
+
+You likely do not want to install this package directly. Instead, install
+the linux-{{FLAVOUR}} meta-package, which will ensure that upgrades work
+correctly, and that supporting packages are also installed.
+"""
+
+[pkg.headers]
+Package = "linux-headers-{{KREL}}"
+Section = "devel"
+Priority = "optional"
+Depends = [
+  "${misc:Depends}",
+]
+Provides = [
+  "linux-headers",
+  "linux-headers-3.0",
+]
+Description = """
+Linux {{FLAVOUR}} kernel headers for version {{KVER}}
+This package provides kernel header files for version {{KREL}}.
+
+This is for sites that want the latest kernel headers.  Please read
+/usr/share/doc/linux-headers-{{KREL}}/debian.README.gz for details.
+"""
+
+[pkg.tools]
+Package = "linux-tools-{{KREL}}"
+Section = "devel"
+Priority = "optional"
+Depends = [
+  "${misc:Depends}",
+  "${shlibs:Depends}",
+  "libc6 (>= 2.38)",
+  "libudev1 (>= 183)",
+  "linux-tools-common",
+]
+Build-Depends-Arch = [
+  "default-jdk-headless",
+  "libcap-dev",
+  "libdw-dev",
+  "libnuma-dev",
+  "libpci-dev",
+  "libslang2-dev",
+  "libstdc++-dev",
+  "libtraceevent-dev",
+  "libtracefs-dev",
+  "libudev-dev",
+  "libunwind-dev",
+  "uuid-dev",
+  "pkg-config",
+  "python3-dev",
+  "python3-setuptools",
+]
+Description = """
+Linux {{FLAVOUR}} tools for version {{KVER}}
+This package provides the architecture dependant parts for kernel
+version locked tools (such as perf and x86_energy_perf_policy) for
+version {{KREL}}.
+"""
+
+#[pkg.doc]
+#Package = "linux-doc-{{FLAVOUR}}"
+##Build-Profiles = "<!stage1>"
+#Architecture = "all"
+#Section = "doc"
+#Priority = "optional"
+#Build-Depends-Indep = [
+#  "xmlto",
+#  "bzip2",
+#  "sharutils",
+#  "asciidoc",
+#  "python3-docutils",
+#]
+#Description = """
+#Linux {{FLAVOUR}} kernel specific documentation for version {{KVER}}
+#This package is deprecated and it is temporarily provided only for
+#compatibility reasons. It will be dropped in the future.
+#"""
+
+# vim: set ts=2 sw=2 et:
