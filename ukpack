@@ -241,6 +241,8 @@ class Config:
         build_depends_indep = set()
 
         for name, pkg in pkgs.items():
+            if not pkg.get("enabled", True):
+                continue
             if name != "source":
                 arch = pkg.get("Architecture", "any")
                 if arch == "any":
@@ -376,14 +378,12 @@ class Config:
         pkgs = self.env["pkg"]
         with path.open("xt", encoding="utf-8") as cfile:
             self._write_source(cfile, pkgs["source"])
-            self._write_pkg(cfile, pkgs["meta"])
-            self._write_pkg(cfile, pkgs["meta-image"])
-            self._write_pkg(cfile, pkgs["meta-headers"])
-            self._write_pkg(cfile, pkgs["meta-tools"])
-            self._write_pkg(cfile, pkgs["image"])
-            self._write_pkg(cfile, pkgs["modules"])
-            self._write_pkg(cfile, pkgs["headers"])
-            self._write_pkg(cfile, pkgs["tools"])
+            for name, pkg in pkgs.items():
+                if name == "source":
+                    continue
+                if not pkg.get("enabled", True):
+                    continue
+                self._write_pkg(cfile, pkg)
 
     def write_changelog(self, path: Path) -> None:
         with self.path.open("rb") as src, path.open("xb") as dst:
