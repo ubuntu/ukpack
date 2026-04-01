@@ -57,7 +57,7 @@ Here we can also overwrite various data included in the packages, like fx. who m
 $ cd ukpack
 $ ./ukpack -t path/to/linux/repo example.toml
 Creating debian directory
-Downloading https://www.kernel.org/pub/linux/kernel/v6.x/linux-6.8.12.tar.xz
+Downloading https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.8.12.tar.xz
 - use -o/--orig to use a previous download
 100.00%
 Creating debian/patches/6.8.12-1.1.patch

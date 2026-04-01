@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 import tomllib
 
-KORG = "https://www.kernel.org/pub/linux/kernel"
+KORG = "https://cdn.kernel.org/pub/linux/kernel"
 UBUNTU_RELEASES = {
     "focal": "20.04",
     "jammy": "22.04",
