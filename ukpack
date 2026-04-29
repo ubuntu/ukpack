@@ -352,8 +352,7 @@ class Config:
         if isinstance(val, list):
             if len(val) > 1:
                 out.write(f"{key}:\n")
-                for e in val:
-                    out.write(f" {self._control_template(e)},\n")
+                out.writelines(f" {self._control_template(e)},\n" for e in val)
             else:
                 out.write(f"{key}: {self._control_template(val[0])}\n")
         else:
