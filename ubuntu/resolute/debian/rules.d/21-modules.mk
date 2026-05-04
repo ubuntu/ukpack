@@ -8,6 +8,9 @@ debian/linux-modules-$(krel).stamp: vmlinux
 	targets='modules_install $(vdso-install)'
 	if grep -q ^CONFIG_OF= .config; then
 	  targets="$$targets dtbs_install"
+	  # this directory is automatically created by make dtbs_install,
+	  # but we need to narrow the window for a race in rust /usr/bin/install
+	  install -dm755 debian/$(pkgname)/usr/lib/firmware/$(krel)/device-tree
 	fi
 	ZSTD_CLEVEL=19 $(KMAKE)$(if $(install-mod-strip), INSTALL_MOD_STRIP='$(install-mod-strip)') \
 	  INSTALL_MOD_PATH=debian/$(pkgname)/usr \
