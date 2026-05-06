@@ -2,8 +2,8 @@ debian/linux-modules-$(krel).stamp: vmlinux
 	@dh_prep -p$(pkgname)
 	image="$$($(KMAKE) -s image_name)"
 	case "$${image##*/}" in
-	bzImage|vmlinuz.efi|Image.*) kfile=/boot/vmlinuz-$(krel);;
-	*)                           kfile=/boot/vmlinux-$(krel);;
+	bzImage|vmlinuz.efi|Image.*) kfile=vmlinuz;;
+	*)                           kfile=vmlinux;;
 	esac
 	targets='modules_install $(vdso-install)'
 	if grep -q ^CONFIG_OF= .config; then
@@ -21,13 +21,16 @@ debian/linux-modules-$(krel).stamp: vmlinux
 	install -dm755 debian/$(pkgname)/boot
 	install -m644 .config debian/$(pkgname)/boot/config-$(krel)
 	install -m600 System.map debian/$(pkgname)/boot/System.map-$(krel)
+	if [ -n '$(ukify)']; then
+	  install -m644 "$$image" "debian/$(pkgname)/usr/lib/modules/$(krel)/$$kfile"
+	fi
 	if [ -n '$(force-compress-modules)' ]; then
 	  find debian/$(pkgname) -name '*.ko' -print0 | \
 	    xargs -0 -r -n 1$(if $(JOBS), -P $(JOBS)) $(force-compress-modules)
 	fi
 	install -dm755 debian/$(pkgname)/usr/lib/linux/triggers
 	for i in debian/templates/modules.*; do
-	  sed -e 's|@krel@|$(krel)|g' -e "s|@kfile@|$$kfile|g" "$$i" > "debian/$(pkgname).$${i##*.}"
+	  sed -e 's|@krel@|$(krel)|g' -e "s|@kfile@|/boot/$${kfile}-$(krel)|g" "$$i" > "debian/$(pkgname).$${i##*.}"
 	done
 	# set Provides from .config
 	provides=
