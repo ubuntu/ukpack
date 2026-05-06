@@ -82,6 +82,13 @@ DEB_BINARY_FIELDS = [
     "Built-Using",
     "Static-Built-Using",
 ]
+EFIARCH = {
+    "i386":    "ia32",
+    "amd64":   "x64",
+    "armhf":   "arm",
+    "arm64":   "aa64",
+    "riscv64": "riscv64",
+}
 
 
 def merge(a: dict, b: dict) -> dict:
@@ -239,6 +246,13 @@ class Config:
         build_depends_arch = set()
         build_depends_indep = set()
 
+        ukify_arch = {x for x in self.arch if self.arch_override(x, "ukify")}
+        if ukify_arch:
+            dep = "systemd-ukify"
+            if ukify_arch < self.arch:
+                dep += f" [{' '.join(sorted(ukify_arch))}]"
+            self.env["pkg"]["image"]["Build-Depends-Arch"].append(dep)
+
         for name, pkg in pkgs.items():
             if not pkg.get("enabled", True):
                 continue
@@ -329,10 +343,9 @@ class Config:
         return key in self.env
 
     def arch_override(self, arch: str, key: str) -> Any:
-        arch = self.env[arch]
-        if key in arch:
-            return arch[key]
-        return self.env.get(key)
+        if val := self.env[arch].get(key, False):
+            return val
+        return self.env.get(key, False)
 
     def _control_template(self, val: str) -> str:
         def replace(m: re.Match) -> str:
@@ -408,8 +421,12 @@ class Config:
         with path.open("xt", encoding="utf-8") as dst:
             for arch in sorted(self.arch):
                 for option in per_arch_options:
-                    if value := self.arch_override(arch, option):
-                        dst.write(f"{option}-{arch} := {value}\n")
+                    if val := self.arch_override(arch, option):
+                        dst.write(f"{option}-{arch} := {val}\n")
+                if val := self.arch_override(arch, "ukify"):
+                    if val is True:
+                        val = f"debian/linux{EFIARCH[arch]}.efi.stub"
+                    dst.write(f"ukify-{arch} := {val}\n")
 
             dst.write(f"flavour := {self.env['flavour']}\n")
             dst.write(f"krel := {self.env['krel']}\n")
@@ -439,8 +456,12 @@ def create_debian(config: Config, debian: Path) -> None:
             else:
                 tgt = f"{arch}.config"
 
-            shutil.copy(config_file, debian / tgt)
+            shutil.copyfile(config_file, debian / tgt)
             config[arch]["config"] = False
+
+        if config.arch_override(arch, "ukify") is True:
+            filename = f"linux{EFIARCH[arch]}.efi.stub"
+            shutil.copyfile(config.datadir / config["distro"] / filename, debian / filename)
 
     config.write_config_mk(debian / "config.mk")
 

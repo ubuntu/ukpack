@@ -51,6 +51,7 @@ cc			:= $(cc-$(DEB_HOST_ARCH))
 vdso-install		:= $(vdso-install-$(DEB_HOST_ARCH))
 install-mod-strip	:= $(install-mod-strip-$(DEB_HOST_ARCH))
 force-compress-modules	:= $(force-compress-modules-$(DEB_HOST_ARCH))
+ukify			:= $(ukify-$(DEB_HOST_ARCH))
 
 karch-i386	:= x86
 karch-x32	:= x86
@@ -62,6 +63,17 @@ karch-ppc64el	:= powerpc
 karch-riscv64	:= riscv
 karch-s390x	:= s390
 karch		:= $(karch-$(DEB_HOST_ARCH))
+
+efiarch-i386	:= ia32
+efiarch-x32	:= unknown
+efiarch-amd64	:= x64
+efiarch-armhf	:= arm
+efiarch-arm64	:= aa64
+efiarch-powerpc	:= unknown
+efiarch-ppc64el	:= unknown
+efiarch-riscv64	:= riscv64
+efiarch-s390x	:= unknown
+efiarch		:= $(efiarch-$(DEB_HOST_ARCH))
 
 ifneq ($(filter cross,$(DEB_BUILD_PROFILES)),)
 ARCH		:= $(karch)

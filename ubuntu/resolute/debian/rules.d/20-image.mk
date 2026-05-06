@@ -6,7 +6,20 @@ debian/linux-image-$(krel).stamp: vmlinux
 	*)                           kfile=/boot/vmlinux-$(krel); compress=;;
 	esac
 	install -dm755 "debian/$(pkgname)$${kfile%/*}"
-	install -m600 "$$image" "debian/$(pkgname)$$kfile"
+	if [ -n '$(ukify)' ]; then
+	  if [ -f 'arch/$(karch)/boot/dts/dtbs-list' ]; then
+	    sed 'i--devicetree-auto' 'arch/$(karch)/boot/dts/dtbs-list'
+	  fi | xargs -xt \
+	    ukify build \
+	      --output "debian/$(pkgname)$$kfile" \
+	      --efi-arch $(efiarch) \
+	      --stub '$(ukify)' \
+	      --uname $(krel) \
+	      --linux "$$image"
+	  chmod 0600 "debian/$(pkgname)$$kfile"
+	else
+	  install -m600 "$$image" "debian/$(pkgname)$$kfile"
+	fi
 	for i in debian/templates/image.*; do
 	  sed -e 's|@krel@|$(krel)|g' -e "s|@kfile@|$$kfile|g" "$$i" > "debian/$(pkgname).$${i##*.}"
 	done
