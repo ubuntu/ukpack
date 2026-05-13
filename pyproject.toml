@@ -10,6 +10,9 @@ keywords = ["ubuntu", "linux", "packaging", "PPA"]
 [project.scripts]
 ukpack = "ukpack:run"
 
+[tool.mypy]
+allow_redefinition = true
+
 [tool.ruff.lint]
 select = [ "ALL" ]
 ignore = [

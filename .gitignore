@@ -1,5 +1,6 @@
-/debian
-/.ruff_cache
+/debian/
+/.ruff_cache/
+/.mypy_cache/
 /*.xz
 /*.gz
 /*.dsc

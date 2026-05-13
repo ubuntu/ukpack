@@ -18,7 +18,7 @@ TAG = re.compile(
 )
 
 
-data = {}
+data: dict[str, dict[str, str]] = {}
 for subdir in ["v3.x", "v4.x", "v5.x", "v6.x", "v7.x"]:
     url = f"{KORG}/{subdir}/sha256sums.asc"
     print(f"Downloading {url}")
@@ -41,7 +41,7 @@ cmd = [
 ]
 print(f"+ {' '.join(cmd)}")
 with subprocess.Popen(cmd, stdout=subprocess.PIPE) as git:
-    for line in git.stdout:
+    for line in git.stdout: # type: ignore[union-attr]
         if match := REF.fullmatch(line):
             sha = match.group(1).decode("ascii")
             tag = match.group(2).decode("ascii")
@@ -51,7 +51,7 @@ for tag, entry in data.items():
     entry["commit"] = tags[tag]
 
 
-def vercomp(version: str) -> (int, int, int):
+def vercomp(version: str) -> tuple[int, int, int]:
     m = TAG.fullmatch(version)
     if not m:
         return 1000, 1000, 1000

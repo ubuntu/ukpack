@@ -13,12 +13,13 @@ import subprocess
 import sys
 import tarfile
 from pathlib import Path
-from typing import TYPE_CHECKING, NoReturn, Self
+from typing import TYPE_CHECKING, Any, NoReturn
 from urllib.request import urlretrieve
 
 if TYPE_CHECKING:
     import io
     import types
+    from collections.abc import Iterator
 
 import tomllib
 
@@ -85,9 +86,9 @@ DEB_BINARY_FIELDS = [
 
 def merge(a: dict, b: dict) -> dict:
     """Merge dictionary b into dictionary a."""
-    stack = []
-    path = []
-    b = iter(b.items())
+    stack: list[tuple[dict, Iterator]] = []
+    path: list[str] = []
+    b: Iterator = iter(b.items())
     while True:
         try:
             (key, new) = next(b)
@@ -114,13 +115,13 @@ def merge(a: dict, b: dict) -> dict:
 class Spawn(subprocess.Popen):
     def __init__(
         self,
-        *args: any,
-        stdin=subprocess.DEVNULL,
-        stdout=None,
-        stderr=None,
-        silent=False,
-        **kwargs: any,
-    ) -> Self:
+        *args: list[str] | str,
+        stdin: io.BufferedReader | Path | int | None = subprocess.DEVNULL,
+        stdout: io.BufferedWriter | Path | int | None = None,
+        stderr: io.BufferedWriter | Path | int | None = None,
+        silent: bool = False,
+        **kwargs: Any,
+    ) -> None:
         if isinstance(stdin, Path):
             stdin = stdin.open("rb")
         if isinstance(stdout, Path):
@@ -129,18 +130,18 @@ class Spawn(subprocess.Popen):
             stderr = stderr.open("wb")
         cmd = args[0]
         if not isinstance(cmd, list):
-            cmd = list(args)
+            cmd = list(args) # type: ignore[arg-type]
         if not silent:
             print(f"+ {' '.join(cmd)}")
         try:
             super().__init__(cmd, stdin=stdin, stdout=stdout, stderr=stderr, **kwargs)
         finally:
             if hasattr(stdin, "close"):
-                stdin.close()
+                stdin.close() # type: ignore[union-attr]
             if hasattr(stdout, "close"):
-                stdout.close()
+                stdout.close() # type: ignore[union-attr]
             if hasattr(stderr, "close"):
-                stderr.close()
+                stderr.close() # type: ignore[union-attr]
 
     def _fail(self) -> NoReturn:
         raise subprocess.CalledProcessError(returncode=self.returncode, cmd=self.args)
@@ -155,11 +156,10 @@ class Spawn(subprocess.Popen):
         exc_type: type[BaseException] | None,
         exc_value: BaseException | None,
         exc_traceback: types.TracebackType | None,
-    ) -> bool:
+    ) -> None:
         super().__exit__(exc_type, exc_value, exc_traceback)
         if self.returncode != 0 and (exc_type is None or exc_type is BrokenPipeError):
             self._fail()
-        return False
 
 
 class Config:
@@ -169,7 +169,7 @@ class Config:
     )
 
     @staticmethod
-    def _parse_config(config: Path) -> (str, dict):
+    def _parse_config(config: Path) -> tuple[str, dict]:
         with config.open("rb") as cfile:
             firstline = cfile.readline().decode("utf-8")
             for line in cfile:
@@ -179,7 +179,7 @@ class Config:
         return firstline, overrides
 
     @staticmethod
-    def _parse_firstline(line: str) -> (str, str, str):
+    def _parse_firstline(line: str) -> tuple[str, str, str]:
         match = re.match(r"([^ \t]*)[ \t]*\(([^\)]*)\)[ \t]*([^;]*)", line)
         if not match:
             raise ValueError(f"Unable to parse changelog entry: {line.rstrip()}")
@@ -199,7 +199,7 @@ class Config:
             )
 
     @staticmethod
-    def _validate_version(version: str) -> (str, str, str, str):
+    def _validate_version(version: str) -> tuple[str, str, str, str]:
         dash = version.rfind("-")
         if dash <= 0:
             raise ValueError(
@@ -317,13 +317,13 @@ class Config:
 
         self._massage_packages()
 
-    def __getitem__(self, key: str) -> any:
+    def __getitem__(self, key: str) -> Any:
         return self.env[key]
 
     def __contains__(self, key: str) -> bool:
         return key in self.env
 
-    def arch_override(self, arch: str, key: str) -> None:
+    def arch_override(self, arch: str, key: str) -> Any:
         arch = self.env[arch]
         if key in arch:
             return arch[key]
@@ -741,7 +741,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def run() -> int:
-    def eprint(*args: any, **kwargs: any) -> int:
+    def eprint(*args: Any, **kwargs: Any) -> int:
         print(*args, file=sys.stderr, **kwargs)
         return 1
 
