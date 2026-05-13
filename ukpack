@@ -106,7 +106,7 @@ def merge(a: dict, b: dict) -> dict:
                 a = old
                 b = iter(new.items())
             else:
-                raise TypeError(f"Overwriting table at {'.'.join(path)})")
+                raise TypeError(f"Overwriting table at {'.'.join(path)}")
         else:
             a[key] = new
 
@@ -218,7 +218,7 @@ class Config:
         match = re.fullmatch(r"([A-Za-z0-9]+)[.+~]*([A-Za-z0-9.+~]*)", rev)
         if not match:
             raise ValueError(
-                f"Invalid revision: {rev}."
+                f"Invalid revision: {rev}. "
                 "Only A-Z, a-z, 0-9, ., +, and ~ allowed in package revision."
             )
 
@@ -492,7 +492,7 @@ def create_source_pkg_quilt(
     else:
 
         def reporthook(blocks: int, blocksize: int, totalsize: int) -> None:
-            print(f"\r{100 * blocks * blocksize / totalsize:6.2f}%", end="")
+            print(f"\r{100 * blocks * blocksize / totalsize:6.2f}%", end="", flush=True)
 
         url = config["orig-url"]
         orig_tarball = orig_tarball_xz
