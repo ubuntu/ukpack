@@ -450,8 +450,21 @@ def numeric_owner(info: tarfile.TarInfo) -> tarfile.TarInfo:
     return info
 
 
+def download_file(url: str, dest: Path) -> None:
+    def reporthook(blocks: int, blocksize: int, totalsize: int) -> None:
+        print(f"\r{100 * blocks * blocksize / totalsize:6.2f}%", end="", flush=True)
+
+    try:
+        urlretrieve(url, filename=dest, reporthook=reporthook)  # noqa: S310
+    except:
+        dest.unlink()
+        raise
+    finally:
+        print()
+
+
 def verify_orig_sha256(dsc_file: Path, sha256: str) -> None:
-    sha256line = re.compile(r"[ \t]+([0-9a-f]{64}) [0-9]+ .*\.orig\.tar\.[gx]z\n")
+    sha256line = re.compile(r"[ \t]+([0-9a-f]{64}) [0-9]+ .*\.orig\.tar\.xz\n")
     with dsc_file.open("rt") as dsc:
         for line in dsc:
             if match := sha256line.fullmatch(line):
@@ -471,40 +484,10 @@ def create_source_pkg_quilt(
     dest: Path,
     build: Path,
     repo: Path,
-    orig: Path | None = None,
+    orig_tarball: Path,
 ) -> None:
     source = config["pkg"]["source"]["Source"]
     debian = build / "debian"
-    orig_tarball_xz = dest / f"{source}_{config['upstream-version']}.orig.tar.xz"
-    orig_tarball_gz = dest / f"{source}_{config['upstream-version']}.orig.tar.gz"
-    if orig:
-        if orig.suffix == ".xz":
-            orig_tarball = orig_tarball_xz
-        elif orig.suffix == ".gz":
-            orig_tarball = orig_tarball_gz
-        if not orig_tarball.is_file():
-            print(f"Creating {orig_tarball.name} symlink")
-            orig_tarball.symlink_to(orig.relative_to(dest, walk_up=True))
-    elif orig_tarball_xz.is_file():
-        orig_tarball = orig_tarball_xz
-    elif orig_tarball_gz.is_file():
-        orig_tarball = orig_tarball_gz
-    else:
-
-        def reporthook(blocks: int, blocksize: int, totalsize: int) -> None:
-            print(f"\r{100 * blocks * blocksize / totalsize:6.2f}%", end="", flush=True)
-
-        url = config["orig-url"]
-        orig_tarball = orig_tarball_xz
-        print(f"Downloading {url}")
-        print("- use -o/--orig to use a previous download")
-        try:
-            urlretrieve(url, filename=orig_tarball, reporthook=reporthook)  # noqa: S310
-        except:
-            orig_tarball.unlink()
-            raise
-        finally:
-            print()
 
     patches = debian / "patches"
     patches.mkdir(mode=0o755)
@@ -635,7 +618,20 @@ def create_source_pkg(
         if native:
             create_source_pkg_native(config, dest, build, repo)
         else:
-            create_source_pkg_quilt(config, dest, build, repo, orig)
+            orig_tarball = dest / f"{source}_{config['upstream-version']}.orig.tar.xz"
+            if orig and orig != orig_tarball:
+                target = orig.relative_to(dest, walk_up=True)
+                print(f"Creating {orig_tarball.name} -> {target} symlink")
+                orig_tarball.symlink_to(target)
+            elif orig_tarball.is_file():
+                print(f"Using existing {orig_tarball.name}")
+            else:
+                url = config["orig-url"]
+                print(f"Downloading {url}")
+                print("- use -o/--orig to use a previous download")
+                download_file(url, orig_tarball)
+
+            create_source_pkg_quilt(config, dest, build, repo, orig_tarball)
 
         print(f"Creating {buildinfo_file}")
         Spawn("dpkg-genbuildinfo", "--build=source", cwd=build).check_returncode()
