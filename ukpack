@@ -450,11 +450,11 @@ def numeric_owner(info: tarfile.TarInfo) -> tarfile.TarInfo:
     return info
 
 
-def verify_orig_sha256(changes: Path, sha256: str) -> None:
-    sh256line = re.compile(r" ([0-9a-f]{64}) [0-9]+ .*\.orig.tar.[gx]z\n")
-    with changes.open("rt") as chf:
-        for line in chf:
-            if match := sh256line.fullmatch(line):
+def verify_orig_sha256(dsc_file: Path, sha256: str) -> None:
+    sha256line = re.compile(r"[ \t]+([0-9a-f]{64}) [0-9]+ .*\.orig\.tar\.[gx]z\n")
+    with dsc_file.open("rt") as dsc:
+        for line in dsc:
+            if match := sha256line.fullmatch(line):
                 found = match.group(1)
                 if sha256 == found:
                     return
@@ -463,7 +463,7 @@ def verify_orig_sha256(changes: Path, sha256: str) -> None:
                     f" expected {sha256}\n"
                     f" found    {found}"
                 )
-    raise ValueError("Could not find SHA256 of orig tarball in changes file.")
+    raise ValueError("Could not find SHA256 of orig tarball in dsc file.")
 
 
 def create_source_pkg_quilt(
@@ -540,7 +540,8 @@ def create_source_pkg_quilt(
     ):
         out.add(debian, "debian", recursive=True, filter=numeric_owner)
 
-    print(f"Creating {source}_{config['version']}.dsc")
+    dsc_file = dest / f"{source}_{config['version']}.dsc"
+    print(f"Creating {dsc_file.name}")
     Spawn(
         "dpkg-source",
         "--format=3.0 (custom)",
@@ -551,6 +552,8 @@ def create_source_pkg_quilt(
         debian_tarball.name,
         cwd=dest,
     ).check_returncode()
+
+    verify_orig_sha256(dsc_file, config["orig-sha256"])
 
 
 def create_source_pkg_native(
@@ -647,13 +650,6 @@ def create_source_pkg(
         ).check_returncode()
     finally:
         shutil.rmtree(build)
-
-    if not native:
-        try:
-            verify_orig_sha256(changes_file, config["orig-sha256"])
-        except:
-            changes_file.unlink()
-            raise
 
     print("Source package built successfully \\o/")
     print(f"Sign package:    debsign {changes_file}")
