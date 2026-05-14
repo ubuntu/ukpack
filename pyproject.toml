@@ -1,0 +1,35 @@
+[project]
+name = "ukpack"
+description = "Create Ubuntu kernel packages from any kernel tree"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "GPL-2.0-only"
+license-files = ["LICENSE"]
+keywords = ["ubuntu", "linux", "packaging", "PPA"]
+
+[project.scripts]
+ukpack = "ukpack:run"
+
+[tool.ruff.lint]
+select = [ "ALL" ]
+ignore = [
+  "ANN401",
+  "COM812",
+  "C901",
+  "D100",
+  "D101",
+  "D102",
+  "D103",
+  "D105",
+  "D107",
+  "EM101",
+  "EM102",
+  "FIX002",
+  "PLR0911",
+  "PLR0912",
+  "PLR0913",
+  "T201",
+  "TD002",
+  "TD003",
+  "TRY003",
+]
