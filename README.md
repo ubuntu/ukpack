@@ -153,13 +153,10 @@ This will build the kernel and create the packages in `..`.
 
 One can even cross-compile the kernel this way. Eg. for RISC-V it would be
 ```sh
-apt-get install gcc-riscv64-linux-gnu libc6-dev-riscv64-cross # for the cross compiler
-rm -rf debian # to remove earlier versions
-/path/to/ukpack -D example.toml
-dpkg-buildpackage -a riscv64 -d -b # -d because the build dependencies are not quite right for cross-compiling
+dpkg-buildpackage -Pcross -a riscv64 -b
 ```
-However the kernel tools as well as header package cannot easily be cross-compiled
-so this will only produce the kernel image, modules and `linux-image-` meta package.
+However the kernel tools as well as header package cannot easily be cross-compiled so
+cross-compiling will only produce the kernel image, modules and `linux-image-<name>` meta package.
 
 ## License
 

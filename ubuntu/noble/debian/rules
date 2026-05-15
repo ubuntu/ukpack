@@ -57,16 +57,21 @@ karch-x32	:= x86
 karch-amd64	:= x86
 karch-armhf	:= arm
 karch-arm64	:= arm64
+karch-powerpc	:= powerpc
 karch-ppc64el	:= powerpc
 karch-riscv64	:= riscv
 karch-s390x	:= s390
 karch		:= $(karch-$(DEB_HOST_ARCH))
 
-ifneq ($(DEB_BUILD_ARCH),$(DEB_HOST_ARCH))
-packages-arch	:= $(filter-out linux-$(flavour) linux-headers-% linux-tools-%,$(packages-arch))
-tools		:=
+ifneq ($(filter cross,$(DEB_BUILD_PROFILES)),)
 ARCH		:= $(karch)
 CROSS_COMPILE	:= $(DEB_HOST_GNU_TYPE)-
+else ifneq ($(DEB_BUILD_ARCH),$(DEB_HOST_ARCH))
+$(error Cross-compiling without the cross build profile. Please use dpkg-buildpackage -Pcross ..)
+endif
+
+ifeq ($(filter linux-tools-%,$(packages-arch)),)
+tools		:=
 endif
 
 ifneq ($(cc),)

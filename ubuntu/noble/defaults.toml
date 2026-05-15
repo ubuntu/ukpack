@@ -36,6 +36,7 @@ Build-Depends = [
 
 [pkg.meta]
 Package = "linux-{{FLAVOUR}}"
+Build-Profiles = "<!cross>"
 Section = "kernel"
 Depends = [
   "${misc:Depends}",
@@ -68,6 +69,7 @@ This package will always depend on the latest {{FLAVOUR}} kernel packages.
 
 [pkg.meta-headers]
 Package = "linux-headers-{{FLAVOUR}}"
+Build-Profiles = "<!cross>"
 Section = "kernel"
 Depends = [
   "${misc:Depends}",
@@ -81,6 +83,7 @@ available.
 
 [pkg.meta-tools]
 Package = "linux-tools-{{FLAVOUR}}"
+Build-Profiles = "<!cross>"
 Section = "kernel"
 Provides = [
   "linux-tools"
@@ -109,15 +112,33 @@ Depends = [
   "linux-modules-{{KREL}}",
 ]
 Build-Depends-Arch = [
+  "gcc-i686-linux-gnu [i386] <cross>",
+  "gcc-x86-64-linux-gnux32 [x32] <cross>",
+  "gcc-x86-64-linux-gnu [amd64] <cross>",
+  "gcc-arm-linux-gnueabihf [armhf] <cross>",
+  "gcc-aarch64-linux-gnu [arm64] <cross>",
+  "gcc-powerpc-linux-gnu [powerpc] <cross>",
+  "gcc-powerpc64le-linux-gnu [ppc64el] <cross>",
+  "gcc-riscv64-linux-gnu [riscv64] <cross>",
+  "gcc-s390x-linux-gnu [s390x] <cross>",
+  "libc6-dev-i386-cross [i386] <cross>",
+  "libc6-dev-x32-cross [x32] <cross>",
+  "libc6-dev-amd64-cross [amd64] <cross>",
+  "libc6-dev-armhf-cross [armhf] <cross>",
+  "libc6-dev-arm64-cross [arm64] <cross>",
+  "libc6-dev-powerpc-cross [powerpc] <cross>",
+  "libc6-dev-ppc64el-cross [ppc64el] <cross>",
+  "libc6-dev-riscv64-cross [riscv64] <cross>",
+  "libc6-dev-s390x-cross [s390x] <cross>",
   "libelf-dev:native",
   "libssl-dev:native",
   "flex",
   "bison",
+  "awk",
   "bc",
   "cpio",
   "python3:native",
   "perl:native",
-  "gawk",
   "pahole",
 ]
 Recommends = [
@@ -174,6 +195,7 @@ correctly, and that supporting packages are also installed.
 
 [pkg.headers]
 Package = "linux-headers-{{KREL}}"
+Build-Profiles = "<!cross>"
 Section = "devel"
 Priority = "optional"
 Depends = [
@@ -193,6 +215,7 @@ This is for sites that want the latest kernel headers.  Please read
 
 [pkg.tools]
 Package = "linux-tools-{{KREL}}"
+Build-Profiles = "<!cross>"
 Section = "devel"
 Priority = "optional"
 Depends = [
@@ -203,21 +226,21 @@ Depends = [
   "linux-tools-common",
 ]
 Build-Depends-Arch = [
-  "default-jdk-headless",
-  "libcap-dev",
-  "libdw-dev",
-  "libnuma-dev",
-  "libpci-dev",
-  "libslang2-dev",
-  "libstdc++-dev",
-  "libtraceevent-dev",
-  "libtracefs-dev",
-  "libudev-dev",
-  "libunwind-dev",
-  "uuid-dev",
-  "pkg-config",
-  "python3-dev",
-  "python3-setuptools",
+  "default-jdk-headless <!cross>",
+  "libcap-dev <!cross>",
+  "libdw-dev <!cross>",
+  "libnuma-dev <!cross>",
+  "libpci-dev <!cross>",
+  "libslang2-dev <!cross>",
+  "libstdc++-dev <!cross>",
+  "libtraceevent-dev <!cross>",
+  "libtracefs-dev <!cross>",
+  "libudev-dev <!cross>",
+  "libunwind-dev <!cross>",
+  "uuid-dev <!cross>",
+  "pkg-config <!cross>",
+  "python3-dev <!cross>",
+  "python3-setuptools <!cross>",
 ]
 Description = """
 Linux {{FLAVOUR}} tools for version {{KVER}}
