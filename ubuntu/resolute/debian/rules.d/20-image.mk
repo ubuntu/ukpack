@@ -25,7 +25,6 @@ debian/linux-image-$(krel).stamp: vmlinux
 	dh_compress -p$(pkgname)
 	dh_fixperms -p$(pkgname) -X"$$kfile"
 	dh_installdeb -p$(pkgname)
-	#dh_installdebconf -p$(pkgname)
 	dh_md5sums -p$(pkgname)
 	$(lock) dh_gencontrol -p$(pkgname)
 	dh_builddeb -p$(pkgname) -- $$compress
