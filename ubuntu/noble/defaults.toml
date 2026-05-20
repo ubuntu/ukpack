@@ -32,6 +32,7 @@ Rules-Requires-Root = "no"
 Standards-Version = "4.6.2"
 Build-Depends = [
   "debhelper-compat (= 13)",
+  "dpkg-build-api (= 1)",
 ]
 
 [pkg.meta]
