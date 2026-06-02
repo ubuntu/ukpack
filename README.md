@@ -105,14 +105,14 @@ Usually it has the form `<upstream>-<abi>.<upload>` where
 
 There are 3 options to configure your kernel:
 
-- __Use a defconfig checked into your kernel tree under `arch/<arch>/configs/`.__  
-  Set `config = "my_defconfig"`.  
+- __Use a defconfig checked into your kernel tree under `arch/<arch>/configs/`.__
+  Set `config = "my_defconfig"`.
   It must end in `_defconfig`.
-- __Use an out-of-tree defconfig file.__  
-  Set `config = "/path/to/my_defconfig"`.  
+- __Use an out-of-tree defconfig file.__
+  Set `config = "/path/to/my_defconfig"`.
   The path is relative to the changelog/metadata file, must contain a `/` and end in `_defconfig`.
-- __Use an out-of-tree full configuration file.__  
-  Set `config = "/path/to/my.config"`.  
+- __Use an out-of-tree full configuration file.__
+  Set `config = "/path/to/my.config"`.
   The path is relative to the changelog/metadata file and must not end in `_defconfig`.
   When building in the PPA it will be checked that the config is not changed by `make syncconfig`,
   so the config file must be generated with the same compiler as used in the PPA.
@@ -157,6 +157,42 @@ dpkg-buildpackage -Pcross -a riscv64 -b
 ```
 However the kernel tools as well as header package cannot easily be cross-compiled so
 cross-compiling will only produce the kernel image, modules and `linux-image-<name>` meta package.
+
+### Don't build certain packages
+
+When building a kernel ukpack will also build tools, header packages and other
+binary artifactes that are tied to the kernel and package them into multiple
+different binary packages.
+However sometimes it can be useful to skip building some of them either because
+building them fails or to save time building packages you don't need.
+
+This can be achieved by setting the `enabled` key to `false` for any of the
+packages. Eg. to disable building the `linux-main-modules-zfs` package with the
+out-of-tree ZFS modules set this in the TOML footer:
+```toml
+[pkg.lmm-zfs]
+enabled = false
+```
+
+You can even disable everything but just the kernel image and modules with
+```toml
+[pkg]
+meta.enabled = false
+meta-headers.enabled = false
+meta-tools.enabled = false
+headers.enabled = false
+tools.enabled = false
+lmm-zfs.enabled = false
+```
+
+If your kernel builds on multiple architectures you can disable packages on just
+some of them by overwriting the `Architecture` key. Eg.
+```toml
+arch = "amd64 arm64 armhf riscv64"
+# disable the ZFS module only on armhf
+[pkg.lmm-zfs]
+Architecture = "amd64 arm64 riscv64"
+```
 
 ## License
 

@@ -12,7 +12,8 @@ debian/linux-modules-$(krel).stamp: vmlinux
 	  # but we need to narrow the window for a race in rust /usr/bin/install
 	  install -dm755 debian/$(pkgname)/usr/lib/firmware/$(krel)/device-tree
 	fi
-	ZSTD_CLEVEL=19 $(KMAKE)$(if $(install-mod-strip), INSTALL_MOD_STRIP='$(install-mod-strip)') \
+	ZSTD_CLEVEL=19 \
+	$(KMAKE) $(if $(install-mod-strip),INSTALL_MOD_STRIP='$(install-mod-strip)' )\
 	  INSTALL_MOD_PATH=debian/$(pkgname)/usr \
 	  INSTALL_DTBS_PATH=debian/$(pkgname)/usr/lib/firmware/$(krel)/device-tree \
 	  $$targets

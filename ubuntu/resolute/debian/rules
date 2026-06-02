@@ -100,6 +100,7 @@ KMAKE := $(strip $(MAKE) \
 lock     := flock -w 60 -xF debian/lock
 pkgname   = $(@:debian/%.stamp=%)
 packages  = $(packages-indep) $(packages-arch)
+lmms     := $(patsubst linux-main-modules-%-$(krel),%,$(filter linux-main-modules-%,$(packages-arch)))
 
 .PHONY: all
 all: binary
@@ -123,7 +124,7 @@ build-indep:
 	@: === $@ ===
 
 .PHONY: build-arch
-build-arch: vmlinux $(tools:%=build-%)
+build-arch: vmlinux $(tools:%=build-%) $(lmms:%=build-lmm-%)
 	@: === $@ ===
 
 .PHONY: binary-indep

@@ -253,6 +253,29 @@ version locked tools (such as perf and x86_energy_perf_policy) for
 version {{KREL}}.
 """
 
+[pkg.lmm-zfs]
+Package = "linux-main-modules-zfs-{{KREL}}"
+Section = "kernel"
+Priority = "optional"
+Depends = [
+  "kmod",
+]
+Provides = [
+  "spl-modules",
+  "zfs-modules",
+]
+Build-Depends-Arch = [
+  "zfs-dkms",
+]
+Description = """
+Out-of-tree zfs modules for {{KVER}}
+This package contains the zfs modules for version {{KVER}}.
+
+You likely do not want to install this package directly, Instead, install
+the linux-image-{{FLAVOUR}} meta-package, which will ensure that
+upgrades work correctly, and that supporting packages are also installed.
+"""
+
 #[pkg.doc]
 #Package = "linux-doc-{{FLAVOUR}}"
 ##Build-Profiles = "<!stage1>"

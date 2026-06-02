@@ -74,3 +74,36 @@ tools/power/x86/turbostat/turbostat:
 
 .PHONY: build-x86
 build-x86: tools/power/x86/x86_energy_perf_policy/x86_energy_perf_policy tools/power/x86/turbostat/turbostat
+
+dkms/:
+	@mkdir dkms
+
+# lmm-zfs
+ifneq ($(filter linux-main-modules-zfs-%,$(packages-arch)),)
+dkms-zfs-version := $(shell dkms status zfs | sed -ne '1s|^zfs/\([1-9][.0-9]*\).*|\1|p')
+dkms/zfs/$(dkms-zfs-version)/$(krel)/$(karch)/module/zfs.ko: vmlinux | dkms/
+	@ret=0
+	$(if $(ARCH),KERNEL_ARCH=$(ARCH) )\
+	$(if $(CROSS_COMPILE),CROSS_COMPILE=$(CROSS_COMPILE) )\
+	ZFS_DKMS_DISABLE_STRIP=y \
+	dkms build --verbose \
+	  --dkmstree $(abspath dkms) \
+	  --kernelsourcedir $(abspath .) \
+	  zfs/$(dkms-zfs-version) -k $(krel)/$(karch) || ret=$$?
+	if [ $$ret -ne 0 ]; then
+	  cat dkms/zfs/$(dkms-zfs-version)/build/make.log
+	  exit $$ret
+	fi
+	cat dkms/zfs/$(dkms-zfs-version)/$(krel)/$(karch)/log/*
+	for i in spl zfs; do
+	  [ ! -f dkms/zfs/$(dkms-zfs-version)/$(krel)/$(karch)/module/$${i}.ko.zst ] || \
+	    zstd -d dkms/zfs/$(dkms-zfs-version)/$(krel)/$(karch)/module/$${i}.ko.zst
+	  [ ! -f dkms/zfs/$(dkms-zfs-version)/$(krel)/$(karch)/module/$${i}.ko.xz ] || \
+	    xz -d dkms/zfs/$(dkms-zfs-version)/$(krel)/$(karch)/module/$${i}.ko.xz
+	  [ ! -f dkms/zfs/$(dkms-zfs-version)/$(krel)/$(karch)/module/$${i}.ko.gz ] || \
+	    gzip -d dkms/zfs/$(dkms-zfs-version)/$(krel)/$(karch)/module/$${i}.ko.gz
+	done
+
+.PHONY: build-lmm-zfs
+build-lmm-zfs: dkms/zfs/$(dkms-zfs-version)/$(krel)/$(karch)/module/zfs.ko
+endif
