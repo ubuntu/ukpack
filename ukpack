@@ -235,7 +235,6 @@ class Config:
 
     def _massage_packages(self) -> None:
         pkgs = self.env["pkg"]
-        source = pkgs["source"]
         build_depends = set()
         build_depends_arch = set()
         build_depends_indep = set()
@@ -246,13 +245,16 @@ class Config:
             if name != "source":
                 arch = pkg.get("Architecture", "any")
                 if arch == "any":
-                    arch = self.env["arch"]
+                    arch = self.arch
                 else:
-                    arch = set(arch.split(" "))
-                    if not arch <= self.arch:
+                    if not isinstance(arch, list):
+                        arch = arch.split(" ")
+                    arch = set(arch)
+                    arch &= self.arch
+                    if not arch:
+                        pkg["enabled"] = False
                         continue
-                    arch = " ".join(sorted(arch))
-                pkg["Architecture"] = arch
+                pkg["Architecture"] = " ".join(sorted(arch))
 
             # Sort lists
             for field, value in pkg.items():
@@ -266,6 +268,7 @@ class Config:
             if lst := pkg.get("Build-Depends-Indep"):
                 build_depends_indep.update(lst)
 
+        source = pkgs["source"]
         if build_depends:
             source["Build-Depends"] = sorted(build_depends)
         if build_depends_arch:
