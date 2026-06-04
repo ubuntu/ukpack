@@ -134,7 +134,7 @@ Build-Depends-Arch = [
   "libssl-dev:native",
   "flex",
   "bison",
-  "awk",
+  "gawk",
   "bc",
   "cpio",
   "python3:native",
