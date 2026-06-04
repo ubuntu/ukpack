@@ -140,6 +140,9 @@ Build-Depends-Arch = [
   "cpio",
   "python3:native",
   "perl:native",
+  "rustc:native",
+  "rust-src",
+  "bindgen:native",
   "pahole",
 ]
 Recommends = [
