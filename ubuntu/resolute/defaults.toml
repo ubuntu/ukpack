@@ -141,7 +141,7 @@ Build-Depends-Arch = [
   "python3:native",
   "perl:native",
   "rustc:native",
-  "rust-src",
+  "rust-src:native",
   "bindgen:native",
   "pahole",
 ]
