@@ -32,6 +32,7 @@ UBUNTU_RELEASES = {
     "plucky": "25.04",
     "questing": "25.10",
     "resolute": "26.04",
+    "stonking": "26.10",
 }
 DEB_SOURCE_FIELDS = [
     "Source",
