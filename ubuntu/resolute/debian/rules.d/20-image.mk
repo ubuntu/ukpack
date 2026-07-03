@@ -8,7 +8,7 @@ debian/linux-image-$(krel).stamp: vmlinux
 	install -dm755 "debian/$(pkgname)$${kfile%/*}"
 	if [ -n '$(ukify)' ]; then
 	  if [ -f 'arch/$(karch)/boot/dts/dtbs-list' ]; then
-	    sed 'i--devicetree-auto' 'arch/$(karch)/boot/dts/dtbs-list'
+	    grep '\.dtb$' 'arch/$(karch)/boot/dts/dtbs-list' | sed 'i--devicetree-auto'
 	  fi | xargs -xt \
 	    ukify build \
 	      --output "debian/$(pkgname)$$kfile" \
