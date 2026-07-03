@@ -126,6 +126,35 @@ config = "./my_intel_defconfig"
 config = "defconfig" # just use defconfig on riscv64
 ```
 
+### Build a Unified Kernel Image (UKI) with ukify
+
+ukpack can bundle the kernel image and its device-trees into a [Unified Kernel
+Image (UKI)][uki] using [`ukify`][ukify-man], a tool shipped with [systemd].
+An EFI stub will be prepended that contains the logic to select the right
+device-tree either based on hardware IDs or on the compatible string of a
+firmware installed device-tree.
+
+[uki]: https://uapi-group.org/specifications/specs/unified_kernel_image/
+[ukify-man]: https://www.freedesktop.org/software/systemd/man/latest/ukify.html
+[systemd]: https://systemd.io/
+
+To enable this, set the `ukify` key to `true` in the TOML footer:
+```toml
+ukify = true
+```
+
+If you want to use your own build of the stub instead set `ukify` to the path to that
+stub file instead of `true.
+
+As with `config`, `ukify` can be set per architecture:
+```toml
+arch = "amd64 arm64"
+[amd64]
+ukify = true
+[arm64]
+ukify = "./arm64-stub.efi"
+```
+
 ### Update your kernel
 
 To create a new version of your kernel,
