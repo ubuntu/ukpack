@@ -126,6 +126,85 @@ config = "./my_intel_defconfig"
 config = "defconfig" # just use defconfig on riscv64
 ```
 
+### Build a Unified Kernel Image (UKI) with ukify
+
+By default the kernel image is installed as a plain `vmlinuz`/`vmlinux` file, which a
+bootloader has to load separately from an initrd and kernel command line.
+Instead, ukpack can pack the kernel image for you into a
+[Unified Kernel Image (UKI)][uki] using [`ukify`][ukify-man], the tool shipped with
+[systemd] that combines a UEFI stub, the kernel image, and optionally other resources
+into a single EFI executable that UEFI firmware (or a boot loader like systemd-boot)
+can boot directly.
+
+[uki]: https://uapi-group.org/specifications/specs/unified_kernel_image/
+[ukify-man]: https://www.freedesktop.org/software/systemd/man/latest/ukify.html
+[systemd]: https://systemd.io/
+
+To enable this, set the `ukify` key to `true` in the TOML footer:
+```toml
+ukify = true
+```
+This will:
+
+* add a build-dependency on `systemd-ukify` (which provides the `ukify` command),
+* build the kernel image into a UKI using the [UEFI stub] bundled with this release of
+  ukpack for your target architecture, and
+* install that UKI in place of the plain kernel image in both the
+  `linux-image-<version>` and `linux-modules-<version>` packages.
+
+[UEFI stub]: https://www.freedesktop.org/software/systemd/man/latest/systemd-stub.html
+
+> **Note:** bundled stub files (`linux<efiarch>.efi.stub`) are currently only shipped
+> for the `resolute` release. Setting `ukify = true` for other releases will fail
+> because there is no bundled stub to use.
+
+If you want to use your own build of the stub - for example to use it on a release
+that doesn't bundle one, or to pin a specific stub version - set `ukify` to a path
+to that stub file instead of `true`:
+```toml
+ukify = "/absolute/path/to/linux<efiarch>.efi.stub"
+```
+This value is passed unmodified to `ukify build --stub` when the kernel is built, so
+it must be reachable from the build environment. In particular it is *not* resolved
+relative to the changelog/metadata file (unlike `config`); use an absolute path, or a
+path relative to the top of your kernel source tree since that's the directory
+`dpkg-buildpackage` is invoked from.
+
+`ukify` support is currently only implemented for these architectures, and the
+`<efiarch>` placeholder above corresponds to:
+
+| Debian architecture  | `<efiarch>` |
+| -------------------- | ----------- |
+| `i386`               | `ia32`      |
+| `amd64`              | `x64`       |
+| `armhf`              | `arm`       |
+| `arm64`              | `aa64`      |
+| `riscv64`            | `riscv64`   |
+
+As with `config`, `ukify` can be set per architecture. Since an unset (or falsy) value
+means "disabled", the simplest way to only enable it for some architectures is to only
+set it under those architectures, without a top-level `ukify` key:
+```toml
+arch = "amd64 arm64"
+[amd64]
+ukify = true
+[arm64]
+ukify = "/path/to/my/arm64-stub.efi"
+```
+
+The `ukify build` invocation used by ukpack only bundles the kernel image with the
+stub - it does not currently pass a kernel command line, initrd, or other resources to
+`ukify`. See the [ukify manual page][ukify-man] for the full set of things a UKI can
+contain, in case you want to add these to the built UKI yourself afterwards.
+
+If the kernel build produces an `arch/<arch>/boot/dts/dtbs-list` file (i.e. `CONFIG_OF=y`
+and the architecture builds separate device-tree blobs), ukify build is passed
+`--devicetree-auto` for every entry in that list ending in `.dtb`, so that the
+appropriate device-tree blob for the booted hardware is picked automatically and
+bundled into the UKI. Device-tree overlay files (`.dtbo`) listed there are *not*
+included, since `ukify`/`systemd-stub` do not support boot-time selection of overlays
+the way it does for base device trees.
+
 ### Update your kernel
 
 To create a new version of your kernel,
