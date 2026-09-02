@@ -110,6 +110,7 @@ Provides = [
 Depends = [
   "${misc:Depends}",
   "kmod",
+  "linux-base (>= 4.5ubuntu1~16.04.1)",
   "linux-modules-{{KREL}}",
 ]
 Build-Depends-Arch = [
